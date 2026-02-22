@@ -4,9 +4,9 @@
 
 ## 特性
 
-- 面向“无视觉能力模型”场景（文本模型 + 外挂视觉）
+- 面向"无视觉能力模型"场景（文本模型 + 外挂视觉）
 - 支持本地图片路径与远程图片 URL
-- 基于 Gemini CLI 非交互调用（`gemini -p`）
+- 可插拔视觉后端 — 当前默认使用 Gemini CLI，后续将支持 PaddleOCR、DeepSeek OCR 等更多引擎
 - 输出结构化 JSON（OCR + 布局 + 语义 + 视觉线索）
 - 适合作为 Agent Skill 工具被 Claude Code / Codex 等调用
 
@@ -16,7 +16,7 @@
 npm install -g @liustack/modlens
 ```
 
-需要先安装并认证 Gemini CLI：
+当前默认后端需要安装并认证 Gemini CLI：
 
 ```bash
 npm install -g @google/gemini-cli
@@ -46,7 +46,7 @@ modlens -i screenshot.png -m gemini-2.5-flash --prompt "重点提取表格结构
 
 - `-i, --input <path>` 输入图片路径（必填）
 - `-o, --output <path>` 可选输出 JSON 路径
-- `-m, --model <name>` Gemini 模型名
+- `-m, --model <name>` 视觉模型名（取决于后端）
 - `--prompt <text>` 额外解析约束
 - `--timeout <ms>` 超时毫秒（默认 `180000`）
 - `--gemini-bin <path>` Gemini 可执行路径（默认 `gemini`）
@@ -54,6 +54,10 @@ modlens -i screenshot.png -m gemini-2.5-flash --prompt "重点提取表格结构
 ## Agent Skill
 
 - [modlens/SKILL.md](skills/modlens/SKILL.md)
+
+## 视觉后端
+
+ModLens 采用可插拔的后端架构。当前 v1 默认使用 **Gemini CLI** 作为视觉识别引擎，后续版本计划支持更多引擎，包括但不限于 PaddleOCR、DeepSeek OCR 以及其他具备视觉/多模态能力的模型。
 
 ## 说明
 
