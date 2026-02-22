@@ -1,0 +1,55 @@
+{
+  "name": "@liustack/modlens",
+  "version": "0.1.0",
+  "description": "CLI tool to provide visual understanding for non-vision LLMs",
+  "type": "module",
+  "bin": {
+    "modlens": "./dist/main.js"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm build",
+    "docs:list": "node scripts/docs-list.js"
+  },
+  "files": [
+    "dist",
+    "skills/modlens/SKILL.md",
+    "skills/modlens/references"
+  ],
+  "keywords": [
+    "cli",
+    "vision",
+    "ocr",
+    "gemini",
+    "claude-code",
+    "skill",
+    "image-to-text",
+    "multimodal",
+    "modlens"
+  ],
+  "author": "Leon Liu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liustack/modlens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/liustack/modlens/issues"
+  },
+  "homepage": "https://github.com/liustack/modlens#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.7",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.1",
+    "vitest": "^3.2.4"
+  }
+}

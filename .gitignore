@@ -1,0 +1,44 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# generated outputs
+skills/**/outputs/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun.lockb
+package-lock.json
+
+
+# environment variables
+.env
+.env.production
+.dev.vars
+
+# macOS-specific files
+.DS_Store
+
+# jetbrains setting folder
+.idea/
+.netlify/
+
+bun.lock
+.vscode
+.venv
+.wrangler
+test-output
+.agent/
+.issues/
+
+.claude/settings.local.json
+
+docs/marketing/
+docs/marketing2/

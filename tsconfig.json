@@ -1,0 +1,32 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "lib": [
+            "ES2022"
+        ],
+        "types": ["node", "vitest/globals"],
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "outDir": "./dist",
+        "rootDir": "./",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "resolveJsonModule": true
+    },
+    "include": [
+        "src/**/*",
+        "test/**/*",
+        "vite.config.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}
