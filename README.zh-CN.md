@@ -100,9 +100,12 @@ modlens -i <图片路径或URL> [选项]
 
 Codex 只讲 Responses API，DeepSeek 官方端点原生支持。先按[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)配置：它的 `models.json` 把 deepseek-v4-flash 声明为纯文本（`input_modalities: ["text"]`），这一行是整条链路的钥匙。
 
-配好之后，粘贴和附件图片都能直接用：Codex 会在图片到达模型前剥掉像素，但消息里保留一个 `<image name=[Image #1] path="/tmp/....png">` 文本标签，modlens skill 从标签里拿到路径接管。已用 deepseek-v4-flash 端到端实测：模型读到标签、调用 modlens、带着完整图片内容回答。
+一个提醒：声明纯文本后，Codex TUI 会**直接拦截 Ctrl+V 粘贴图片**（提示 "Model deepseek-v4-flash does not support image inputs"），闸门在输入框层，图片根本进不了消息。可用的姿势有两个，都用 deepseek-v4-flash 端到端实测过：
 
-如果没配 `models.json`（裸的自定义模型配置），Codex 会默认你的模型能看图，把图片原样发给 API，能不能活下来全看服务商的宽容度。任何宿主下都稳的姿势：别粘贴图片，把图片文件拖进终端（或手打路径），让路径以纯文本到达模型。
+- **把图片文件拖进终端**（或手打路径）。路径以纯文本进入消息，modlens skill 从这里接管。
+- `codex exec -i 图片.png "..."` 附件方式：Codex 在内核层剥掉像素，但保留 `<image name=[Image #1] path="/tmp/....png">` 文本标签，skill 从标签提取路径。
+
+如果没配 `models.json`（裸的自定义模型配置），Codex 会默认你的模型能看图，把图片原样发给 API，能不能活下来全看服务商的宽容度。拖文件这招在任何宿主里都稳。
 
 ## 为什么外挂，而不是换多模态模型？
 

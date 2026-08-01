@@ -100,9 +100,12 @@ Use `-m gemini-3.1-pro-high` for dense screenshots or hard documents. Output con
 
 Codex only speaks the Responses API, and DeepSeek's official endpoint supports it natively. Follow the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/) first: its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), which is the key that unlocks the whole flow.
 
-With that in place, pasted and attached images just work: Codex strips the pixels before they reach your model but keeps a `<image name=[Image #1] path="/tmp/....png">` text tag in the message, and the modlens skill picks the path up from there. Verified end to end with deepseek-v4-flash: the model reads the tag, calls modlens, and answers with full image content.
+One heads-up: with text-only declared, the Codex TUI **blocks Ctrl+V image paste outright** ("Model deepseek-v4-flash does not support image inputs"). That gate sits in the input box, so the image never reaches the message. The working moves, both verified end to end with deepseek-v4-flash:
 
-Without `models.json` (a bare custom-model config), Codex assumes your model accepts images and sends them raw, and whether that survives depends on the provider's lenience. The always-safe move in any harness: skip the paste, drag the image file into the terminal (or type its path) so the path arrives as plain text.
+- **Drag the image file into the terminal** (or type its path). The path arrives as plain text, and the modlens skill takes over from there.
+- `codex exec -i image.png "..."` attachments: Codex strips the pixels in core but keeps a `<image name=[Image #1] path="/tmp/....png">` text tag, and the skill extracts the path from the tag.
+
+Without `models.json` (a bare custom-model config), Codex assumes your model accepts images and sends them raw, and whether that survives depends on the provider's lenience. Dragging the file works everywhere, in every harness.
 
 ## Why a bridge instead of a multimodal model?
 
