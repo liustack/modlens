@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="https://raw.githubusercontent.com/liustack/modlens/main/assets/banner.jpg" width="100%" alt="ModLens, plug-in vision for text-only LLMs" />
   <h1>ModLens</h1>
   <p><b>Plug-in eyes for text-only LLMs. Free.</b></p>
   <p>
@@ -8,9 +9,9 @@
   <p><a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
-Your favorite model is brilliant but blind. DeepSeek-V4-Flash costs next to nothing and reasons beautifully, yet paste a screenshot and it shrugs: no vision. Same story for every text-only model running inside Claude Code, OpenClaw, Codex, or any Agent Skills harness.
+DeepSeek-V4-Flash is one of the smartest cheap models you can run, and it's completely blind. Show it a screenshot and it just shrugs. Same dead end for every text-only model wired into Claude Code, OpenClaw, Codex, or any Agent Skills harness.
 
-ModLens fixes that with one command. Point it at any image (local path or URL) and it returns structured JSON evidence a text-only model can actually reason over: OCR text, layout regions in reading order, entities, relations, visual clues. The seeing is done by [Antigravity CLI](https://antigravity.google) (`agy`), so it rides Google's free quota, not your API bill.
+One command fixes that. Point ModLens at an image, a local path or a URL, and it hands back structured JSON evidence a text-only model can actually reason over: OCR text, layout regions in reading order, entities, relations, visual clues. The seeing itself happens in [Antigravity CLI](https://antigravity.google) (`agy`), so it runs on Google's free quota, not your API bill.
 
 ```text
 your text-only model ──▶ modlens skill (auto-triggers on images)
@@ -22,7 +23,7 @@ your text-only model ──▶ modlens skill (auto-triggers on images)
               structured JSON evidence ──▶ model answers with sight
 ```
 
-Install the skill once, and your agent handles images by itself. No model switch, no API key, no prompt surgery.
+Install the skill once and your agent starts handling images on its own. No model swap, no API key, no prompt surgery.
 
 ## Quick start
 
@@ -33,7 +34,7 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # opens browser sign-in, then exit
 ```
 
-**2. Install the skill** — tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**2. Install the skill.** Tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
 ```text
 Install the skill from https://github.com/liustack/modlens
@@ -45,7 +46,7 @@ or do it yourself:
 npx -y skills add liustack/modlens
 ```
 
-**3. Use it.** Drop an image path into the chat and ask anything. The skill triggers automatically whenever your model needs eyes.
+**3. Use it.** Drop an image path into the chat and ask anything. The skill fires automatically whenever your model needs eyes.
 
 ## See it work
 
@@ -75,7 +76,7 @@ Real output, truncated:
 }
 ```
 
-A run takes 15-40 seconds. The JSON structure is enforced by schema at the provider level, so your agent never has to fish JSON out of markdown again.
+A run takes 15-40 seconds. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
 
 ## CLI reference
 
@@ -94,32 +95,32 @@ modlens -i <image-path-or-url> [options]
 | `--provider-bin <path>` | Provider binary | `agy` |
 | `--workdir <path>` | Working directory for the provider | |
 
-Use `-m gemini-3.1-pro-high` for dense screenshots or hard documents. Output contract: [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md).
+Reach for `-m gemini-3.1-pro-high` on dense screenshots or tricky documents. Output contract: [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md).
 
 ## Using it in Codex (DeepSeek and friends)
 
-Codex only speaks the Responses API, and DeepSeek's official endpoint supports it natively. Follow the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/) first: its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), which is the key that unlocks the whole flow.
+Codex speaks only the Responses API, and DeepSeek's official endpoint supports it natively. Start with the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/): its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), and that one line is what unlocks everything below.
 
-One heads-up: with text-only declared, the Codex TUI **blocks Ctrl+V image paste outright** ("Model deepseek-v4-flash does not support image inputs"). That gate sits in the input box, so the image never reaches the message. The working moves, both verified end to end with deepseek-v4-flash:
+One catch: once text-only is declared, the Codex TUI **blocks Ctrl+V image paste outright** (`Model deepseek-v4-flash does not support image inputs`). The gate sits in the input box itself, so the image never makes it into the message. Two moves get around it, both verified end to end with deepseek-v4-flash:
 
-- **Drag the image file into the terminal** (or type its path). The path arrives as plain text, and the modlens skill takes over from there.
-- `codex exec -i image.png "..."` attachments: Codex strips the pixels in core but keeps a `<image name=[Image #1] path="/tmp/....png">` text tag, and the skill extracts the path from the tag.
+- **Drag the image file into the terminal**, or type its path. The path lands as plain text, and the modlens skill picks it up from there.
+- Attach it with `codex exec -i image.png "..."`. Codex strips the pixels in core but leaves a `<image name=[Image #1] path="/tmp/....png">` text tag behind, and the skill reads the path out of that tag.
 
-Without `models.json` (a bare custom-model config), Codex assumes your model accepts images and sends them raw, and whether that survives depends on the provider's lenience. Dragging the file works everywhere, in every harness.
+Skip `models.json` (a bare custom-model config) and Codex assumes your model can see images, sending them raw, and whether that survives depends on the provider's patience. Dragging the file in is the one move that works everywhere, in every harness.
 
 ## Why a bridge instead of a multimodal model?
 
-- **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever) for its price and reasoning. ModLens adds sight without touching that choice.
-- **Evidence beats pixels.** Text models reason best over structured text. ModLens hands them OCR plus layout plus semantics, not a base64 blob.
-- **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 runs on its successor, Antigravity CLI, behind the same provider interface, so the next engine swap is one file, not a rewrite.
+- **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever else) for its price and its reasoning, not its eyesight. ModLens adds sight without touching that choice.
+- **Evidence beats pixels.** Text models reason best over structured text, not raw pixels. ModLens hands them OCR plus layout plus semantics, already decoded, not a base64 blob.
+- **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 moved to its successor, Antigravity CLI, behind the same provider interface, so the next engine swap costs one file, not a rewrite.
 
-ModSearch, the sibling project, does the same trick for web search and page fetching: [liustack/modsearch](https://github.com/liustack/modsearch).
+ModSearch, ModLens's sibling project, plays the same trick for web search and page fetching: [liustack/modsearch](https://github.com/liustack/modsearch).
 
 ## Built with liustack
 
-ModLens v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)** — four Agent Skills, one loop: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. A lighter, sharper alternative to Superpowers.
+ModLens v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)**. Four Agent Skills, one loop: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. A lighter, sharper alternative to Superpowers.
 
-**If ModLens just gave your model eyes, liustack gives your whole workflow discipline:**
+**ModLens gave your model eyes. liustack gives your whole workflow discipline:**
 
 ```bash
 npx -y skills add liustack/liustack -g
@@ -129,12 +130,12 @@ npx -y skills add liustack/liustack -g
 
 ## Security notes
 
-- ModLens invokes `agy` with `--dangerously-skip-permissions`, because print mode skips tool calls without it. The prompt restricts the agent to reading the one image, and instructs it to treat image content as data, never as instructions. Still, only analyze images you would open yourself, and prefer running inside a sandboxed workspace.
-- Vision output is evidence, not gospel: fields the engine cannot read land in `uncertainty` instead of being invented. Pixel bboxes and confidence scores were removed in v2 because models fabricate them.
+- ModLens runs `agy` with `--dangerously-skip-permissions`, because print mode skips every tool call without it. The prompt keeps the agent to reading that one image and tells it to treat image content as data, never as instructions. Even so, only point it at images you would open yourself, and run it inside a sandboxed workspace when you can.
+- Vision output is evidence, not gospel. Anything the engine cannot read lands in `uncertainty` instead of getting invented. Pixel bounding boxes and confidence scores were dropped in v2 because models fabricate them.
 
 ## Disclaimer
 
-Personal learning and experimentation only. Not for commercial use. Antigravity CLI usage falls under your own Google account terms and quota.
+Personal learning and experimentation only, not for commercial use. Antigravity CLI usage runs under your own Google account's terms and quota.
 
 ## License
 
