@@ -1,72 +1,129 @@
-# ModLens
+<div align="center">
+  <h1>ModLens</h1>
+  <p><b>给纯文本 LLM 外挂一双眼睛，免费。</b></p>
+  <p>
+    <a href="https://www.npmjs.com/package/@liustack/modlens"><img src="https://img.shields.io/npm/v/@liustack/modlens" alt="npm"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  </p>
+  <p><a href="./README.md">English</a></p>
+</div>
 
-面向 AI Agent 的视觉外挂 CLI，用于把图片来源（本地路径或远程 URL）转成结构化文本证据，补齐纯文本 LLM 的“看图”能力。
+你最喜欢的模型聪明但失明。DeepSeek-V4-Flash 便宜得离谱，推理又漂亮，可你贴一张截图过去，它只能两手一摊：没有视觉。跑在 Claude Code、OpenClaw、Codex 或任何 Agent Skills 宿主里的纯文本模型，都是同一个故事。
 
-## 特性
+ModLens 用一条命令解决这件事。指向任意图片（本地路径或 URL），它返回纯文本模型真正能推理的结构化 JSON 证据：OCR 文字、按阅读顺序排列的版面区块、实体、关系、视觉线索。「看」这件事交给 [Antigravity CLI](https://antigravity.google)（`agy`），用的是 Google 的免费额度，不动你的 API 账单。
 
-- 面向"无视觉能力模型"场景（文本模型 + 外挂视觉）
-- 支持本地图片路径与远程图片 URL
-- 可插拔视觉后端 — 当前默认使用 Gemini CLI，后续将支持 PaddleOCR、DeepSeek OCR 等更多引擎
-- 输出结构化 JSON（OCR + 布局 + 语义 + 视觉线索）
-- 适合作为 Agent Skill 工具被 Claude Code / Codex 等调用
-
-## 安装
-
-```bash
-npm install -g @liustack/modlens
+```text
+你的纯文本模型 ──▶ modlens skill（遇到图片自动触发）
+                        │
+                        ▼
+             agy · Gemini 3.6 Flash（免费额度）
+                        │
+                        ▼
+           结构化 JSON 证据 ──▶ 模型带着视力回答
 ```
 
-当前默认后端需要安装并认证 Gemini CLI：
+装一次 skill，你的 agent 从此自己处理图片。不换模型，不要 API key，不用改提示词。
+
+## 快速开始
+
+**1. 安装 Antigravity CLI 并登录**（一次性）：
 
 ```bash
-npm install -g @google/gemini-cli
-gemini
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy    # 浏览器完成登录后退出
 ```
 
-或直接用 `npx`：
+**2. 安装 skill**，直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
+
+```text
+Install the skill from https://github.com/liustack/modlens
+```
+
+或者自己动手：
 
 ```bash
-npx @liustack/modlens [options]
+npx -y skills add liustack/modlens
 ```
 
-## 用法
+**3. 用起来。** 往对话里丢一个图片路径，随便问。模型需要眼睛时，skill 自动触发。
+
+## 看看效果
 
 ```bash
-# 标准输出 JSON
-modlens -i screenshot.png
-
-# 落盘到文件
-modlens -i screenshot.png -o lens.json
-
-# 指定模型和额外解析要求
-modlens -i screenshot.png -m gemini-2.5-flash --prompt "重点提取表格结构"
+npx @liustack/modlens -i workflow.jpg
 ```
 
-## 参数
+真实输出（截断）：
 
-- `-i, --input <path>` 输入图片路径（必填）
-- `-o, --output <path>` 可选输出 JSON 路径
-- `-m, --model <name>` 视觉模型名（取决于后端）
-- `--prompt <text>` 额外解析约束
-- `--timeout <ms>` 超时毫秒（默认 `180000`）
-- `--gemini-bin <path>` Gemini 可执行路径（默认 `gemini`）
+```json
+{
+  "image": "/Users/leon/projects/liustack/assets/loop.jpg",
+  "provider": "antigravity-cli",
+  "result": {
+    "summary": "A workflow diagram with four nodes connected by labeled arrows.",
+    "ocr": {
+      "full_text": "/shaping\nBEFORE YOU BUILD\n\n/coding\nWHILE YOU BUILD\n\nIT BREAKS\n/dig\nROOT CAUSE FIRST\n...",
+      "lines": [
+        { "language": "en", "text": "/shaping" },
+        { "language": "en", "text": "BEFORE YOU BUILD" }
+      ]
+    },
+    "layout": { "regions": [ { "reading_order": 1, "text": "/shaping BEFORE YOU BUILD", "type": "other" } ] },
+    "uncertainty": []
+  },
+  "meta": { "model": "gemini-3.6-flash-low", "durationSeconds": 25.4 }
+}
+```
 
-## Agent Skill
+单次运行 15-40 秒。JSON 结构由 provider 层的 schema 强制保证，你的 agent 再也不用从 markdown 里抠 JSON。
 
-- [modlens/SKILL.md](skills/modlens/SKILL.md)
+## CLI 参数
 
-## 视觉后端
+```bash
+modlens -i <图片路径或URL> [选项]
+```
 
-ModLens 采用可插拔的后端架构。当前 v1 默认使用 **Gemini CLI** 作为视觉识别引擎，后续版本计划支持更多引擎，包括但不限于 PaddleOCR、DeepSeek OCR 以及其他具备视觉/多模态能力的模型。
+| 参数 | 含义 | 默认值 |
+| :-- | :-- | :-- |
+| `-i, --input <path\|url>` | 要解析的图片（必填） | |
+| `-o, --output <path>` | 同时把 JSON 写入文件 | |
+| `-m, --model <name>` | provider 模型 | `gemini-3.6-flash-low` |
+| `-p, --provider <name>` | 视觉 provider | `antigravity-cli` |
+| `--prompt <text>` | 额外关注点，如 `"重点提取表格"` | |
+| `--timeout <ms>` | provider 超时 | `180000` |
+| `--provider-bin <path>` | provider 可执行文件 | `agy` |
+| `--workdir <path>` | provider 运行目录 | |
 
-## 说明
+内容密集的截图或难啃的文档，换 `-m gemini-3.1-pro-high`。输出契约见 [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md)。
 
-- `modlens` 只做视觉解析。
-- `modsearch` / `modfetch` 是其他独立项目，不在本仓库实现。
+## 为什么外挂，而不是换多模态模型？
+
+- **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）是为了价格和推理能力。ModLens 只加视力，不动这个选择。
+- **证据强过像素。** 文本模型最擅长在结构化文本上推理。ModLens 递过去的是 OCR 加版面加语义，不是一坨 base64。
+- **引擎会死，桥不会。** v1 跑在 Gemini CLI 免费档上，2026 年 6 月被 Google 停掉。v2 换到继任者 Antigravity CLI，同一个 provider 接口，下次换引擎只改一个文件，不用重写。
+
+姊妹项目 ModSearch 用同样的思路补上联网搜索和网页抓取：[liustack/modsearch](https://github.com/liustack/modsearch)。
+
+## 用 liustack 打造
+
+ModLens v2 从需求成形、编码到交付，全程由 **[liustack](https://github.com/liustack/liustack)** 驱动。四个 Agent Skills，一个闭环：动手前 `shaping` 捋清楚，编码时 `coding` 上纪律，出问题 `dig` 挖根因，交接时 `snapshot` 留快照。比 Superpowers 更轻，也更锋利。
+
+**ModLens 给你的模型装上眼睛，liustack 给你的整个工作流装上纪律：**
+
+```bash
+npx -y skills add liustack/liustack -g
+```
+
+⭐ 觉得有用？给 [ModLens](https://github.com/liustack/modlens) 和 [liustack](https://github.com/liustack/liustack) 各点一个 star。star 是下一个开发者找到它们的方式。
+
+## 安全说明
+
+- ModLens 调用 `agy` 时带 `--dangerously-skip-permissions`，因为 print 模式不带它就不执行工具。提示词里已把 agent 限制为只读这一张图，并要求把图片内容当数据、绝不当指令。即便如此，只解析你自己敢打开的图片，并尽量在沙箱化的工作目录里运行。
+- 视觉输出是证据，不是圣旨：引擎读不清的内容会进 `uncertainty`，而不是被编出来。v2 删掉了像素坐标和置信度分数，因为模型会捏造它们。
 
 ## 免责声明
 
-本项目仅供**个人学习与实验**使用，请勿用于商业用途。
+仅供个人学习与实验，请勿用于商业用途。Antigravity CLI 的使用受你自己的 Google 账号条款与额度约束。
 
 ## License
 

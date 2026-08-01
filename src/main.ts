@@ -11,14 +11,16 @@ const program = new Command();
 
 program
     .name('modlens')
-    .description('Image-to-text visual bridge for non-vision LLM workflows')
+    .description('Plug-in vision for text-only LLMs: image in, structured JSON evidence out')
     .version(__APP_VERSION__)
-    .requiredOption('-i, --input <path>', 'Input image path')
+    .requiredOption('-i, --input <path|url>', 'Input image path or https URL')
     .option('-o, --output <path>', 'Write result JSON to a file')
-    .option('-m, --model <name>', 'Gemini model name')
-    .option('--prompt <text>', 'Extra prompt constraints for this image')
-    .option('--timeout <ms>', 'Command timeout in milliseconds', '180000')
-    .option('--gemini-bin <path>', 'Gemini CLI binary path', 'gemini')
+    .option('-m, --model <name>', 'Provider model name (default: gemini-3.6-flash-low)')
+    .option('-p, --provider <name>', 'Vision provider name', 'antigravity-cli')
+    .option('--prompt <text>', 'Extra focus for this image')
+    .option('--timeout <ms>', 'Provider timeout in milliseconds', '180000')
+    .option('--provider-bin <path>', 'Provider binary path (default: agy)')
+    .option('--workdir <path>', 'Working directory for the provider command')
     .action(async (options) => {
         try {
             const timeoutMs = Number.parseInt(options.timeout, 10);
@@ -28,10 +30,12 @@ program
 
             const result = await analyzeImage({
                 input: options.input,
+                provider: options.provider,
                 model: options.model,
                 prompt: options.prompt,
                 timeoutMs,
-                geminiBin: options.geminiBin,
+                providerBin: options.providerBin,
+                workdir: options.workdir,
             });
 
             const output = JSON.stringify(result, null, 2);

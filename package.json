@@ -1,7 +1,7 @@
 {
   "name": "@liustack/modlens",
-  "version": "0.1.0",
-  "description": "CLI tool to provide visual understanding for non-vision LLMs",
+  "version": "2.0.0",
+  "description": "Plug-in vision for text-only LLMs, powered by the free Antigravity CLI",
   "type": "module",
   "bin": {
     "modlens": "./dist/main.js"
@@ -23,7 +23,8 @@
     "cli",
     "vision",
     "ocr",
-    "gemini",
+    "antigravity",
+    "agent-skill",
     "claude-code",
     "skill",
     "image-to-text",

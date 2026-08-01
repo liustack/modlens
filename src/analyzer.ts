@@ -1,52 +1,28 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildVisionPrompt } from './prompt.ts';
-
-export interface BuildGeminiInvocationOptions {
-    imagePath: string;
-    model?: string;
-    geminiBin?: string;
-    workspaceDir?: string;
-    extraPrompt?: string;
-}
-
-export interface GeminiInvocation {
-    command: string;
-    args: string[];
-    cwd: string;
-}
-
-export interface GeminiCliJsonOutput {
-    session_id?: string;
-    response: string;
-    stats?: unknown;
-    [key: string]: unknown;
-}
-
-export interface ExtractedStructuredResponse {
-    structured: unknown | null;
-    rawText: string;
-}
+import { resolveProvider, type ProviderInvocation } from './providers/index.ts';
 
 export interface AnalyzeOptions {
     input: string;
+    provider?: string;
     model?: string;
     prompt?: string;
     timeoutMs?: number;
-    geminiBin?: string;
-    workspaceDir?: string;
+    providerBin?: string;
+    workdir?: string;
 }
 
 export interface AnalyzeResult {
     image: string;
-    structured: unknown | null;
-    rawText: string;
+    provider: string;
+    result: unknown;
     meta: {
         generatedAt: string;
-        model: string | null;
-        geminiSessionId: string | null;
-        geminiStats: unknown | null;
+        model: string;
+        conversationId: string | null;
+        durationSeconds: number | null;
+        usage: unknown | null;
     };
 }
 
@@ -61,87 +37,8 @@ interface ResolvedInput {
 }
 
 const DEFAULT_TIMEOUT_MS = 180_000;
-const ESCAPE_AT_PATH_REGEX = /([\\\s,;!?()[\]{}])/g;
-
-export function escapeAtPath(filePath: string): string {
-    return filePath.replace(ESCAPE_AT_PATH_REGEX, '\\$1');
-}
-
-export function buildGeminiInvocation(options: BuildGeminiInvocationOptions): GeminiInvocation {
-    const isRemote = isRemoteSource(options.imagePath);
-    const imageSource = isRemote ? options.imagePath.trim() : path.resolve(options.imagePath);
-    const imageDir = path.dirname(imageSource);
-    const prompt = buildVisionPrompt(imageSource, options.extraPrompt);
-
-    const args = ['-p', prompt, '--output-format', 'json'];
-
-    if (options.model) {
-        args.push('-m', options.model);
-    }
-
-    return {
-        command: options.geminiBin || 'gemini',
-        args,
-        cwd: options.workspaceDir || (isRemote ? process.cwd() : imageDir),
-    };
-}
-
-export function parseGeminiCliJsonOutput(stdout: string): GeminiCliJsonOutput {
-    let parsed: unknown;
-
-    try {
-        parsed = JSON.parse(stdout.trim());
-    } catch (error) {
-        throw new Error(`Failed to parse Gemini JSON output: ${(error as Error).message}`);
-    }
-
-    if (!parsed || typeof parsed !== 'object' || typeof (parsed as { response?: unknown }).response !== 'string') {
-        throw new Error('Gemini JSON output is missing a string `response` field.');
-    }
-
-    return parsed as GeminiCliJsonOutput;
-}
-
-export function extractStructuredResponse(text: string): ExtractedStructuredResponse {
-    const rawText = text.trim();
-
-    const direct = tryParseJson(rawText);
-    if (direct !== null) {
-        return {
-            structured: direct,
-            rawText,
-        };
-    }
-
-    const fencedMatch = /```(?:json)?\s*([\s\S]*?)```/i.exec(rawText);
-    if (fencedMatch) {
-        const parsedFenced = tryParseJson(fencedMatch[1].trim());
-        if (parsedFenced !== null) {
-            return {
-                structured: parsedFenced,
-                rawText,
-            };
-        }
-    }
-
-    const firstBrace = rawText.indexOf('{');
-    const lastBrace = rawText.lastIndexOf('}');
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-        const possibleJson = rawText.slice(firstBrace, lastBrace + 1);
-        const parsedObject = tryParseJson(possibleJson);
-        if (parsedObject !== null) {
-            return {
-                structured: parsedObject,
-                rawText,
-            };
-        }
-    }
-
-    return {
-        structured: null,
-        rawText,
-    };
-}
+// Give the provider's own timeout a chance to fire first; SIGTERM is the backstop.
+const KILL_GRACE_MS = 30_000;
 
 export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResult> {
     const resolvedInput = resolveInput(options.input);
@@ -149,32 +46,38 @@ export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResu
         validateInputFile(resolvedInput.source);
     }
 
-    const invocation = buildGeminiInvocation({
-        imagePath: resolvedInput.source,
-        model: options.model,
-        geminiBin: options.geminiBin,
-        workspaceDir: options.workspaceDir,
+    const provider = resolveProvider(options.provider);
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const model = options.model || provider.defaultModel;
+
+    const invocation = provider.buildInvocation({
+        imageSource: resolvedInput.source,
+        imageKind: resolvedInput.kind,
+        model,
         extraPrompt: options.prompt,
+        providerBin: options.providerBin,
+        workdir: options.workdir,
+        timeoutMs,
     });
 
-    const commandResult = await runCommand(invocation, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    const geminiOutput = parseGeminiCliJsonOutput(commandResult.stdout);
-    const extracted = extractStructuredResponse(geminiOutput.response);
+    const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
+    const parsed = provider.parseOutput(commandResult.stdout);
 
     return {
         image: resolvedInput.source,
-        structured: extracted.structured,
-        rawText: extracted.rawText,
+        provider: provider.name,
+        result: parsed.result,
         meta: {
             generatedAt: new Date().toISOString(),
-            model: options.model ?? null,
-            geminiSessionId: geminiOutput.session_id ?? null,
-            geminiStats: geminiOutput.stats ?? null,
+            model,
+            conversationId: parsed.meta.conversationId,
+            durationSeconds: parsed.meta.durationSeconds,
+            usage: parsed.meta.usage,
         },
     };
 }
 
-function resolveInput(input: string): ResolvedInput {
+export function resolveInput(input: string): ResolvedInput {
     const trimmed = input.trim();
     if (!trimmed) {
         throw new Error('Input path is required.');
@@ -207,15 +110,11 @@ function validateInputFile(filePath: string): void {
     }
 }
 
-function tryParseJson(text: string): unknown | null {
-    try {
-        return JSON.parse(text);
-    } catch {
-        return null;
-    }
-}
-
-function runCommand(invocation: GeminiInvocation, timeoutMs: number): Promise<CommandResult> {
+function runCommand(
+    providerName: string,
+    invocation: ProviderInvocation,
+    timeoutMs: number,
+): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
         const child = spawn(invocation.command, invocation.args, {
             cwd: invocation.cwd,
@@ -242,7 +141,11 @@ function runCommand(invocation: GeminiInvocation, timeoutMs: number): Promise<Co
         child.on('error', (error) => {
             clearTimeout(timer);
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                reject(new Error(`Gemini CLI not found: ${invocation.command}`));
+                reject(
+                    new Error(
+                        `Provider CLI not found: ${invocation.command}. Install Antigravity CLI and sign in first.`,
+                    ),
+                );
                 return;
             }
             reject(error);
@@ -252,14 +155,14 @@ function runCommand(invocation: GeminiInvocation, timeoutMs: number): Promise<Co
             clearTimeout(timer);
 
             if (timedOut) {
-                reject(new Error(`Gemini CLI timed out after ${timeoutMs} ms.`));
+                reject(new Error(`${providerName} provider timed out after ${timeoutMs} ms.`));
                 return;
             }
 
             if (code !== 0) {
                 reject(
                     new Error(
-                        `Gemini CLI failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
+                        `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
                     ),
                 );
                 return;
