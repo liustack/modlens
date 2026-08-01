@@ -96,6 +96,14 @@ modlens -i <image-path-or-url> [options]
 
 Use `-m gemini-3.1-pro-high` for dense screenshots or hard documents. Output contract: [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md).
 
+## Using it in Codex (DeepSeek and friends)
+
+Codex only speaks the Responses API, and DeepSeek's official endpoint supports it natively. Follow the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/) first: its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), which is the key that unlocks the whole flow.
+
+With that in place, pasted and attached images just work: Codex strips the pixels before they reach your model but keeps a `<image name=[Image #1] path="/tmp/....png">` text tag in the message, and the modlens skill picks the path up from there. Verified end to end with deepseek-v4-flash: the model reads the tag, calls modlens, and answers with full image content.
+
+Without `models.json` (a bare custom-model config), Codex assumes your model accepts images and sends them raw, and whether that survives depends on the provider's lenience. The always-safe move in any harness: skip the paste, drag the image file into the terminal (or type its path) so the path arrives as plain text.
+
 ## Why a bridge instead of a multimodal model?
 
 - **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever) for its price and reasoning. ModLens adds sight without touching that choice.

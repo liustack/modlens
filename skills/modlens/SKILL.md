@@ -52,6 +52,15 @@ modlens -i <image> -o <output.json> -m <model> --prompt "<extra focus>" --timeou
 - Default model is `gemini-3.6-flash-low` (fastest, cheapest on quota). Use `-m gemini-3.1-pro-high` for dense or hard images.
 - A run typically takes 15-40 seconds. Do not treat silence as a hang before the timeout.
 
+## Finding the image path in the chat
+
+Harnesses rarely hand you a clean path. Look for these signals:
+
+- Codex wraps every pasted or attached image in a text tag like
+  `<image name=[Image #1] path="/tmp/xxxx.png">`. Extract the `path` value and run modlens on it. Pasted images live in a temp file the harness already created.
+- A placeholder like `image content omitted because you do not support image input` means the harness stripped an image for you. The path tag next to it still holds the real file. Use it.
+- If the user mentions an image but no tag or path appears anywhere in the message, ask for the file path instead of guessing.
+
 ## Workflow
 
 1. Run `modlens` once per image.

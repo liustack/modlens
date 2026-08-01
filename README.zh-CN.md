@@ -96,6 +96,14 @@ modlens -i <图片路径或URL> [选项]
 
 内容密集的截图或难啃的文档，换 `-m gemini-3.1-pro-high`。输出契约见 [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md)。
 
+## 在 Codex 里用（DeepSeek 等纯文本模型）
+
+Codex 只讲 Responses API，DeepSeek 官方端点原生支持。先按[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)配置：它的 `models.json` 把 deepseek-v4-flash 声明为纯文本（`input_modalities: ["text"]`），这一行是整条链路的钥匙。
+
+配好之后，粘贴和附件图片都能直接用：Codex 会在图片到达模型前剥掉像素，但消息里保留一个 `<image name=[Image #1] path="/tmp/....png">` 文本标签，modlens skill 从标签里拿到路径接管。已用 deepseek-v4-flash 端到端实测：模型读到标签、调用 modlens、带着完整图片内容回答。
+
+如果没配 `models.json`（裸的自定义模型配置），Codex 会默认你的模型能看图，把图片原样发给 API，能不能活下来全看服务商的宽容度。任何宿主下都稳的姿势：别粘贴图片，把图片文件拖进终端（或手打路径），让路径以纯文本到达模型。
+
 ## 为什么外挂，而不是换多模态模型？
 
 - **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）是为了价格和推理能力。ModLens 只加视力，不动这个选择。
