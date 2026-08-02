@@ -145,6 +145,10 @@ One catch: once text-only is declared, the Codex TUI **blocks Ctrl+V image paste
 - **Drag the image file into the terminal**, or type its path. The path lands as plain text, and the modlens skill picks it up from there.
 - Attach it with `codex exec -i image.png "..."`. The skill reads the path out of the message tag.
 
+## Using it in Claude Code (gateway models)
+
+No setup needed: drag the image file into the terminal, or type its path, and the skill takes over. One warning if you run a text-only model behind `ANTHROPIC_BASE_URL`: Claude Code never writes pasted images to disk and has no modality switch, so a pasted image either reaches the model as a pathless `[Unsupported Image]` placeholder (lenient gateways like DeepSeek's Anthropic endpoint) or breaks the request outright ([#62009](https://github.com/anthropics/claude-code/issues/62009)). Paste is a dead end there by platform design. Drag the file; that is the whole trick.
+
 ## Why a bridge instead of a multimodal model?
 
 - **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever else) for its price and its reasoning, not its eyesight. ModLens adds sight without touching that choice.
