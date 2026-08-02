@@ -145,6 +145,10 @@ Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官�
 - **把图片文件拖进终端**，或者手打路径。路径以纯文本形式落进消息，modlens skill 接着从这里接手。
 - 用 `codex exec -i 图片.png "..."` skill 从这里把路径抠出来。
 
+## 在 Claude Code 里用（网关接第三方模型）
+
+不用任何配置：把图片文件拖进终端，或手打路径，skill 直接接手。给走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型的人提个醒：Claude Code 粘贴的图片从不落盘，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。粘贴在这是平台级死路，拖文件就是全部答案。
+
 ## 为什么外挂，而不是换多模态模型？
 
 - **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）图的是价格和推理能力，不是视力。ModLens 只加视力，不碰这个选择。

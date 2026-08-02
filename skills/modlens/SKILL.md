@@ -66,6 +66,7 @@ Harnesses rarely hand you a clean path. Look for these signals:
 - Codex wraps every pasted or attached image in a text tag like
   `<image name=[Image #1] path="/tmp/xxxx.png">`. Extract the `path` value and run modlens on it. Pasted images live in a temp file the harness already created.
 - A placeholder like `image content omitted because you do not support image input` means the harness stripped an image for you. The path tag next to it still holds the real file. Use it.
+- Claude Code never writes pasted images to disk. Behind a text-only gateway you will only see a placeholder like `[Unsupported Image]` or `[Image #1]`, with no path anywhere. When that happens, tell the user pasted images cannot reach you in this harness and ask them to drag the image file into the terminal (or type its path) instead.
 - If the user mentions an image but no tag or path appears anywhere in the message, ask for the file path instead of guessing.
 
 ## Workflow
