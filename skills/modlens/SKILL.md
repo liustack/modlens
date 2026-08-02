@@ -61,14 +61,19 @@ Speed expectations: `gemini-api` typically 5-10 seconds, `antigravity-cli` 15-40
 
 ## Finding the image path in the chat
 
-Harnesses rarely hand you a clean path. Look for these signals:
+Harnesses rarely hand you a clean path. First identify which harness you are in, then use its route. Never mix routes across harnesses.
 
-- Codex wraps every pasted or attached image in a text tag like
-  `<image name=[Image #1] path="/tmp/xxxx.png">`. Extract the `path` value and run modlens on it. Pasted images live in a temp file the harness already created.
-- A placeholder like `image content omitted because you do not support image input` means the harness stripped an image for you. The path tag next to it still holds the real file. Use it.
-- Claude Code never writes pasted images to a regular temp file. Behind a text-only gateway you will only see a placeholder like `[Unsupported Image]` or `[Image #1]`, with no path. When that happens, run `modlens recover-paste` (add `--count <n>` for several images): it recovers the pasted image bytes from the local session transcripts and prints real file paths as JSON. Feed that path to `modlens -i`.
-  Session targeting: your session id is ${CLAUDE_SESSION_ID}. If that value reads as a UUID, Claude Code has substituted it; pass it along as `--session <that-uuid>` for exact targeting. If it still reads as a literal placeholder (older Claude Code, or another harness), just omit `--session`: no env var carries a session id in Bash, and the command then auto-locates by scanning every transcript of the current project and picking the session holding the newest pasted-image message by timestamp, which is the one the user just pasted into, even with concurrent sessions. Run it from the project directory the conversation is happening in. If recovery fails (transcript format is Claude Code internals and may change), fall back to asking the user to drag the image file into the terminal or type its path.
-- If the user mentions an image but no tag or path appears anywhere in the message, ask for the file path instead of guessing.
+**Codex** (you see a text tag like `<image name=[Image #1] path="/tmp/xxxx.png">`):
+
+- Extract the `path` value from the tag and run modlens on it. Pasted images live in a temp file Codex already created; a stripped image keeps its path tag next to the placeholder. Do NOT use `recover-paste` here: it reads Claude Code session files, which do not exist for Codex.
+
+**Claude Code** (no path tag anywhere; the placeholder looks like `[Unsupported Image]` or a bare `[Image #1]`, and `${CLAUDE_SESSION_ID}` below reads as a UUID):
+
+- Claude Code never writes pasted images to a regular temp file, but it logs them into its local session transcript. Run `modlens recover-paste` (add `--count <n>` for several images): it recovers the pasted image bytes and prints real file paths as JSON. Feed that path to `modlens -i`.
+- Session targeting: your session id is ${CLAUDE_SESSION_ID}. If that value reads as a UUID, pass it as `--session <uuid>` for exact targeting. If it reads as a literal placeholder, omit `--session`: the command auto-locates by scanning this project's transcripts for the newest pasted-image message, which is the session the user just pasted into, even with concurrent sessions. Run it from the project directory the conversation is happening in.
+- If recovery fails (transcript format is Claude Code internals and may change), ask the user to drag the image file into the terminal or type its path.
+
+**Any other harness, or nothing matches** (no path tag, `${CLAUDE_SESSION_ID}` still a literal placeholder, no Claude Code transcripts): do not guess and do not run `recover-paste`. Ask the user for the image file path, or suggest dragging the file into the terminal.
 
 ## Workflow
 
