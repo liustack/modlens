@@ -78,6 +78,10 @@ Real output, truncated:
 
 A run takes 15-40 seconds. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
 
+And here is the whole loop inside the Codex desktop app: a text-only DeepSeek-V4-Flash reads an entire X profile page. The model's parse on the left, the original screenshot on the right. It cannot see the image. It read all of it.
+
+![Text-only DeepSeek reading a full X profile via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
+
 ## CLI reference
 
 ```bash
