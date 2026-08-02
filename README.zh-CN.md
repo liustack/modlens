@@ -109,6 +109,28 @@ modlens -i <图片路径或 URL> [选项]
 
 截图信息密集或文档难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md)。
 
+## Provider 与配置
+
+ModLens 内置四个视觉 provider，默认还是 `antigravity-cli`：零 key，纯免费额度。
+
+| Provider | 需要什么 | 速度 | 说明 |
+| :-- | :-- | :-- | :-- |
+| `antigravity-cli`（默认） | `agy` 登录过 | 15-40 秒 | 免费额度，完整 agent 循环 |
+| `gemini-api` | 免费 AI Studio key | 5-10 秒 | 最快的免费路线，服务端强制 schema |
+| `openai` | baseUrl + apiKey + model | 看端点 | 任何 OpenAI 兼容的多模态端点（qwen-vl、GLM 等） |
+| `anthropic` | `ANTHROPIC_API_KEY` | 几秒 | 默认 Claude Haiku，强制工具调用保 schema |
+
+配置放在 `~/.modlens/config.json`，环境变量能盖过它（`GEMINI_API_KEY`、`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`ANTHROPIC_API_KEY`），CLI 参数最大。
+
+```bash
+modlens config init                          # 生成配置骨架
+modlens config set gemini-api.apiKey <key>   # 落盘即 0600 权限
+modlens config show                          # key 打码显示
+modlens config set provider gemini-api       # 换默认 provider
+```
+
+免费 Gemini key 去 [aistudio.google.com](https://aistudio.google.com) 领，三分钟，不要信用卡。嫌麻烦就直接跟你的 agent 说一句「帮我把 Gemini key 配进 modlens」，让它自己跑命令。
+
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
 Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)配好：它的 `models.json` 把 deepseek-v4-flash 声明成纯文本（`input_modalities: ["text"]`），这一行就是打通下面整条链路的钥匙。

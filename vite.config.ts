@@ -18,7 +18,8 @@ export default defineConfig({
                 // Node.js built-ins
                 'child_process',
                 'fs',
-                'path'
+                'path',
+                'os'
             ],
         },
         target: 'node18',

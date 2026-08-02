@@ -1,14 +1,18 @@
 export interface BuildVisionPromptOptions {
     imageSource: string;
-    imageKind: 'local' | 'remote';
+    // local/remote instruct an agent to load the image itself;
+    // inline means the image already travels with this request.
+    imageKind: 'local' | 'remote' | 'inline';
     extraPrompt?: string;
 }
 
 export function buildVisionPrompt(options: BuildVisionPromptOptions): string {
     const readInstruction =
-        options.imageKind === 'remote'
-            ? `Fetch the image at this URL and analyze it: ${options.imageSource}`
-            : `Read the image file at this path and analyze it: ${options.imageSource}`;
+        options.imageKind === 'inline'
+            ? 'Analyze the image attached to this message.'
+            : options.imageKind === 'remote'
+              ? `Fetch the image at this URL and analyze it: ${options.imageSource}`
+              : `Read the image file at this path and analyze it: ${options.imageSource}`;
 
     const basePrompt = `${readInstruction}
 

@@ -22,23 +22,29 @@ Do not use this skill for:
 
 ```bash
 modlens --version
-agy --version
 ```
 
 If `modlens` is missing, run it via `npx @liustack/modlens` instead.
 
-If `agy` (Antigravity CLI) is missing:
+ModLens supports four vision providers. Check what is configured:
 
 ```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
+modlens config show
 ```
 
-If `agy` is installed but not signed in, ask the user to run `agy` once in a terminal and complete the Google sign-in. This cannot be done non-interactively.
+- **antigravity-cli** (default, no key needed): needs `agy` installed and signed in. If `agy --version` fails: `curl -fsSL https://antigravity.google/cli/install.sh | bash`, then ask the user to run `agy` once and complete the Google sign-in (cannot be done non-interactively).
+- **gemini-api**: needs `GEMINI_API_KEY` env or `modlens config set gemini-api.apiKey <key>` (free key from https://aistudio.google.com).
+- **openai**: any OpenAI-compatible multimodal endpoint; needs baseUrl + apiKey + model via env (`OPENAI_BASE_URL`, `OPENAI_API_KEY`) or `modlens config set openai.<field> <value>`.
+- **anthropic**: needs `ANTHROPIC_API_KEY` env or config; defaults to Claude Haiku.
+
+`modlens config init` writes a starter config to `~/.modlens/config.json` when none exists.
 
 ## Command
 
 ```bash
 modlens -i <image-path-or-url>
+# pick a provider explicitly
+modlens -i <image> -p gemini-api
 # or without a global install
 npx @liustack/modlens -i <image-path-or-url>
 ```
@@ -49,8 +55,7 @@ Optional flags:
 modlens -i <image> -o <output.json> -m <model> --prompt "<extra focus>" --timeout <ms>
 ```
 
-- Default model is `gemini-3.6-flash-low` (fastest, cheapest on quota). Use `-m gemini-3.1-pro-high` for dense or hard images.
-- A run typically takes 15-40 seconds. Do not treat silence as a hang before the timeout.
+Speed expectations: `gemini-api` typically 5-10 seconds, `antigravity-cli` 15-40 seconds (full agent loop), `openai`/`anthropic` depend on the endpoint. For dense or hard images on antigravity-cli, try `-m gemini-3.1-pro-high`.
 
 ## Finding the image path in the chat
 
@@ -80,10 +85,11 @@ Top level: `{ image, provider, result, meta }`. Inside `result`:
 - `visual`: colors and style clues
 - `uncertainty[]`: what the vision engine was unsure about
 
-Structure is enforced by a JSON schema at the provider level. Full schema: `references/output-schema.md`.
+Structure is enforced by schema on antigravity-cli (`--json-schema`), gemini-api (`responseJsonSchema`), and anthropic (forced tool call). The openai route uses a template prompt plus shape validation and fails loudly on mismatch.
 
 ## Failure Handling
 
-- Exit code 1 with `Provider CLI not found`: Antigravity CLI is not installed. Install it, then retry.
-- `no structured result` or auth-flavored errors: ask the user to run `agy` and sign in, or check quota.
+- `Provider CLI not found`: Antigravity CLI is not installed. Install it, or switch provider: `-p gemini-api`.
+- Missing key errors name the exact env var and `config set` command to run. Relay that to the user.
+- `does not match the vision schema` on the openai route: retry once, then switch to `-p gemini-api` or `-p anthropic` for enforced schemas.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of fabricating image content.

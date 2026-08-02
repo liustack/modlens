@@ -1,4 +1,8 @@
+import type { ProviderSettings } from '../config.ts';
 import { antigravityCliProvider } from './antigravity.ts';
+import { anthropicApiProvider } from './anthropicApi.ts';
+import { geminiApiProvider } from './geminiApi.ts';
+import { openaiCompatProvider } from './openaiCompat.ts';
 
 export interface ProviderInvocation {
     command: string;
@@ -14,6 +18,7 @@ export interface BuildProviderInvocationOptions {
     providerBin?: string;
     workdir?: string;
     timeoutMs: number;
+    settings?: ProviderSettings;
 }
 
 export interface ProviderParsedOutput {
@@ -28,14 +33,23 @@ export interface ProviderParsedOutput {
 export interface VisionProvider {
     name: string;
     defaultModel: string;
-    buildInvocation: (options: BuildProviderInvocationOptions) => ProviderInvocation;
-    parseOutput: (stdout: string) => ProviderParsedOutput;
+    // Subprocess providers implement buildInvocation + parseOutput.
+    // In-process API providers implement execute instead.
+    buildInvocation?: (options: BuildProviderInvocationOptions) => ProviderInvocation;
+    parseOutput?: (stdout: string) => ProviderParsedOutput;
+    execute?: (options: BuildProviderInvocationOptions) => Promise<ProviderParsedOutput>;
 }
 
 const PROVIDERS: Record<string, VisionProvider> = {
     'antigravity-cli': antigravityCliProvider,
     antigravity: antigravityCliProvider,
     agy: antigravityCliProvider,
+    'gemini-api': geminiApiProvider,
+    gemini: geminiApiProvider,
+    openai: openaiCompatProvider,
+    'openai-compat': openaiCompatProvider,
+    anthropic: anthropicApiProvider,
+    claude: anthropicApiProvider,
 };
 
 export function resolveProvider(providerName = 'antigravity-cli'): VisionProvider {
@@ -43,7 +57,9 @@ export function resolveProvider(providerName = 'antigravity-cli'): VisionProvide
     const provider = PROVIDERS[normalized];
 
     if (!provider) {
-        throw new Error(`Unsupported provider: ${providerName}`);
+        throw new Error(
+            `Unsupported provider: ${providerName}. Available: ${listProviders().join(', ')}`,
+        );
     }
 
     return provider;

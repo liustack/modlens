@@ -109,6 +109,28 @@ modlens -i <image-path-or-url> [options]
 
 Reach for `-m gemini-3.1-pro-high` on dense screenshots or tricky documents. Output contract: [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md).
 
+## Providers and config
+
+ModLens ships four vision providers. `antigravity-cli` stays the default: zero keys, pure free quota.
+
+| Provider | Needs | Typical speed | Notes |
+| :-- | :-- | :-- | :-- |
+| `antigravity-cli` (default) | `agy` signed in | 15-40s | free quota, full agent loop |
+| `gemini-api` | free AI Studio key | 5-10s | fastest free route, schema enforced server-side |
+| `openai` | baseUrl + apiKey + model | endpoint-dependent | any OpenAI-compatible multimodal endpoint (qwen-vl, GLM, ...) |
+| `anthropic` | `ANTHROPIC_API_KEY` | a few seconds | Claude Haiku by default, schema via forced tool call |
+
+Config lives in `~/.modlens/config.json`. Environment variables override the file (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `ANTHROPIC_API_KEY`), and CLI flags override everything.
+
+```bash
+modlens config init                          # write a starter config
+modlens config set gemini-api.apiKey <key>   # saved with 0600 perms
+modlens config show                          # keys come out masked
+modlens config set provider gemini-api       # switch the default provider
+```
+
+The free Gemini key takes three minutes at [aistudio.google.com](https://aistudio.google.com), no credit card. Or skip the manual work entirely and tell your agent: "configure modlens with my Gemini API key".
+
 ## Using it in Codex (DeepSeek and friends)
 
 Codex speaks only the Responses API, and DeepSeek's official endpoint supports it natively. Start with the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/): its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), and that one line is what unlocks the whole flow.
