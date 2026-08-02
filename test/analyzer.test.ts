@@ -357,3 +357,75 @@ describe('claude-cli provider', async () => {
     ).toThrow('no result');
   });
 });
+
+describe('recover-paste', async () => {
+  const { projectSlug, extractUserImages, recoverPastedImages } = await import(
+    '../src/recoverPaste.ts'
+  );
+  const os3 = await import('os');
+  const fs3 = await import('fs');
+  const path3 = await import('path');
+
+  it('derives claude project slugs from cwd', () => {
+    expect(projectSlug('/Users/leon/projects/liustack-web')).toBe(
+      '-Users-leon-projects-liustack-web',
+    );
+    expect(projectSlug('/Users/leon/.claude')).toBe('-Users-leon--claude');
+  });
+
+  it('extracts user image blocks in order and recovers the newest ones', () => {
+    const dir = fs3.mkdtempSync(path3.join(os3.tmpdir(), 'modlens-rec-'));
+    const transcript = path3.join(dir, 's1.jsonl');
+    const png1 = Buffer.from('first-image').toString('base64');
+    const png2 = Buffer.from('second-image').toString('base64');
+    const lines = [
+      JSON.stringify({ message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }),
+      JSON.stringify({
+        message: {
+          role: 'user',
+          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png1 } }],
+        },
+      }),
+      'not json at all',
+      JSON.stringify({
+        message: {
+          role: 'assistant',
+          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png1 } }],
+        },
+      }),
+      JSON.stringify({
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'look' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: png2 } },
+          ],
+        },
+      }),
+    ];
+    fs3.writeFileSync(transcript, lines.join('\n'));
+
+    expect(extractUserImages(transcript)).toHaveLength(2);
+
+    const outDir = path3.join(dir, 'out');
+    const result = recoverPastedImages({ transcript, count: 1, outDir });
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].mediaType).toBe('image/jpeg');
+    expect(fs3.readFileSync(result.images[0].path).toString()).toBe('second-image');
+
+    const both = recoverPastedImages({ transcript, count: 5, outDir });
+    expect(both.images).toHaveLength(2);
+    fs3.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('fails with guidance when no images exist', () => {
+    const dir = fs3.mkdtempSync(path3.join(os3.tmpdir(), 'modlens-rec-'));
+    const transcript = path3.join(dir, 'empty.jsonl');
+    fs3.writeFileSync(
+      transcript,
+      JSON.stringify({ message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }),
+    );
+    expect(() => recoverPastedImages({ transcript })).toThrow('No pasted images');
+    fs3.rmSync(dir, { recursive: true, force: true });
+  });
+});

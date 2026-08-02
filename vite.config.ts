@@ -17,6 +17,7 @@ export default defineConfig({
                 'commander',
                 // Node.js built-ins
                 'child_process',
+                'crypto',
                 'fs',
                 'path',
                 'os'

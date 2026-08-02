@@ -147,7 +147,9 @@ One catch: once text-only is declared, the Codex TUI **blocks Ctrl+V image paste
 
 ## Using it in Claude Code (gateway models)
 
-No setup needed: drag the image file into the terminal, or type its path, and the skill takes over. One warning if you run a text-only model behind `ANTHROPIC_BASE_URL`: Claude Code never writes pasted images to disk and has no modality switch, so a pasted image either reaches the model as a pathless `[Unsupported Image]` placeholder (lenient gateways like DeepSeek's Anthropic endpoint) or breaks the request outright ([#62009](https://github.com/anthropics/claude-code/issues/62009)). Paste is a dead end there by platform design. Drag the file; that is the whole trick.
+No setup needed: drag the image file into the terminal, or type its path, and the skill takes over.
+
+Paste is trickier. If you run a text-only model behind `ANTHROPIC_BASE_URL`, Claude Code never writes pasted images to a regular temp file and has no modality switch, so a pasted image reaches the model as a pathless `[Unsupported Image]` placeholder (lenient gateways like DeepSeek's Anthropic endpoint) or breaks the request outright ([#62009](https://github.com/anthropics/claude-code/issues/62009)). But the bytes are not gone: Claude Code appends every user message, images included, to the local session transcript before the gateway ever sees it. That is what `modlens recover-paste` exploits: it pulls the most recent pasted images back out of the transcript and prints real file paths, ready for `modlens -i`. The skill runs this automatically when it spots the placeholder. One honest caveat: the transcript layout is Claude Code internals with no compatibility promise; if recovery ever breaks, dragging the file still works everywhere.
 
 ## Why a bridge instead of a multimodal model?
 

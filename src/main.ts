@@ -14,6 +14,7 @@ import {
     setConfigValue,
 } from './config.ts';
 import { listProviders } from './providers/index.ts';
+import { recoverPastedImages } from './recoverPaste.ts';
 
 const program = new Command();
 
@@ -59,6 +60,36 @@ program
             }
 
             process.stdout.write(`${output}\n`);
+        } catch (error) {
+            process.stderr.write(
+                `Error: ${error instanceof Error ? error.message : String(error)}\n`,
+            );
+            process.exit(1);
+        }
+    });
+
+program
+    .command('recover-paste')
+    .description(
+        'Recover images pasted into Claude Code from the session transcript (they never hit disk otherwise)',
+    )
+    .option('--count <n>', 'How many recent pasted images to recover', '1')
+    .option('--out-dir <path>', 'Directory to write recovered images to')
+    .option('--transcript <path>', 'Explicit transcript .jsonl (default: newest for cwd)')
+    .option('--cwd <path>', 'Project directory the image was pasted in', process.cwd())
+    .action(async (options) => {
+        try {
+            const count = Number.parseInt(options.count, 10);
+            if (!Number.isFinite(count) || count <= 0) {
+                throw new Error('Invalid --count. Use a positive integer.');
+            }
+            const result = recoverPastedImages({
+                count,
+                outDir: options.outDir,
+                transcript: options.transcript,
+                cwd: options.cwd,
+            });
+            process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
         } catch (error) {
             process.stderr.write(
                 `Error: ${error instanceof Error ? error.message : String(error)}\n`,
