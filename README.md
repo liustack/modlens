@@ -78,9 +78,9 @@ Real output, truncated:
 
 A run takes 15-40 seconds. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
 
-And here is the whole loop inside the Codex desktop app: drop three illustrations at once, and a text-only DeepSeek-V4-Flash announces it will read them one by one through ModLens, then delivers all three descriptions in 21 seconds, design intent included.
+And here is the whole loop inside the Codex desktop app: a text-only DeepSeek-V4-Flash reads a tweet screenshot through ModLens in 40 seconds, and gets everything: the caption, the engagement numbers (2.9K replies, 270K likes, 5M views), even the image's alt text. Where the resolution runs out, it says so instead of guessing.
 
-![Text-only DeepSeek reading three images in one go via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
+![Text-only DeepSeek reading a tweet screenshot in full detail via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
 
 ## CLI reference
 
