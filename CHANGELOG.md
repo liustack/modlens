@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.3 - 2026-08-03
+
+- Docs: the Claude Code paste-recovery loop is now marked as verified end to end in a real DeepSeek-gateway session (placeholder spotted, file recovered by session id, image answered in full).
+
 ## 2.4.1 - 2026-08-03
 
 - Skill: path-finding is now a per-harness decision tree. Codex path tags never trigger transcript recovery, unknown harnesses are told to ask for a path instead of guessing.
