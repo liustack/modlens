@@ -75,7 +75,11 @@ program
     )
     .option('--count <n>', 'How many recent pasted images to recover', '1')
     .option('--out-dir <path>', 'Directory to write recovered images to')
-    .option('--transcript <path>', 'Explicit transcript .jsonl (default: newest for cwd)')
+    .option(
+        '--session <id>',
+        'Claude Code session id for exact targeting (skills get it via ${CLAUDE_SESSION_ID})',
+    )
+    .option('--transcript <path>', 'Explicit transcript .jsonl (overrides --session)')
     .option('--cwd <path>', 'Project directory the image was pasted in', process.cwd())
     .action(async (options) => {
         try {
@@ -87,6 +91,7 @@ program
                 count,
                 outDir: options.outDir,
                 transcript: options.transcript,
+                session: options.session,
                 cwd: options.cwd,
             });
             process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

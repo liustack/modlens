@@ -149,7 +149,7 @@ Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官�
 
 不用任何配置：把图片文件拖进终端，或手打路径，skill 直接接手。
 
-粘贴要多说两句。走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型时，Claude Code 粘贴的图片从不写普通临时文件，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。但图片字节没有蒸发：Claude Code 在网关看到消息之前，就把每条用户消息（含图片）原样写进了本地会话记录。`modlens recover-paste` 干的就是这件事：从会话记录里把最近粘贴的图捞回来，落成真实文件路径，直接喂给 `modlens -i`。skill 看到占位符会自动跑这一步。会话记录本来就是一个会话一个文件，recover-paste 按消息时间戳挑「持有最新粘贴图」的那份，同项目并发开多个会话也不会拿错。一句老实话：会话记录格式是 Claude Code 的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
+粘贴要多说两句。走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型时，Claude Code 粘贴的图片从不写普通临时文件，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。但图片字节没有蒸发：Claude Code 在网关看到消息之前，就把每条用户消息（含图片）原样写进了本地会话记录。`modlens recover-paste` 干的就是这件事：从会话记录里把最近粘贴的图捞回来，落成真实文件路径，直接喂给 `modlens -i`。skill 看到占位符会自动跑这一步。会话记录本来就是一个会话一个文件。skill 可以通过 `--session` 传入精确会话（Claude Code 从 v2.1.9 起会把 `${CLAUDE_SESSION_ID}` 替换进 skill 文本），不传时按消息时间戳挑「持有最新粘贴图」的那份，两条路都不怕同项目并发多开。一句老实话：会话记录格式是 Claude Code 的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
 
 ## 为什么外挂，而不是换多模态模型？
 

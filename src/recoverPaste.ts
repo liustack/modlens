@@ -26,6 +26,7 @@ export interface RecoverResult {
 export interface RecoverOptions {
     cwd?: string;
     transcript?: string;
+    session?: string;
     count?: number;
     outDir?: string;
 }
@@ -155,8 +156,27 @@ export function extractUserImages(transcriptPath: string): ImageBlockRef[] {
     return images;
 }
 
+export function transcriptForSession(cwd: string, sessionId: string): string {
+    const file = path.join(
+        os.homedir(),
+        '.claude',
+        'projects',
+        projectSlug(cwd),
+        `${sessionId}.jsonl`,
+    );
+    if (!fs.existsSync(file)) {
+        throw new Error(
+            `No transcript for session ${sessionId} under this project (${file}). Check --cwd, or drop --session to auto-locate by newest pasted image.`,
+        );
+    }
+    return file;
+}
+
 export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult {
-    const transcript = options.transcript ?? locateTranscript(options.cwd ?? process.cwd());
+    const cwd = options.cwd ?? process.cwd();
+    const transcript =
+        options.transcript ??
+        (options.session ? transcriptForSession(cwd, options.session) : locateTranscript(cwd));
     const count = Math.max(1, options.count ?? 1);
     const outDir = options.outDir ?? path.join(os.tmpdir(), 'modlens-paste');
 

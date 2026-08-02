@@ -110,3 +110,39 @@ describe('locateTranscript (via recoverPastedImages)', () => {
         }
     });
 });
+
+describe('transcriptForSession', () => {
+    it('targets the exact session file and errors on a missing one', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-sess-'));
+        const cwd = '/tmp/proj';
+        const dir = path.join(home, '.claude', 'projects', '-tmp-proj');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+            path.join(dir, 'aaaa-bbbb.jsonl'),
+            imageLine('exact-image', '2026-08-03T03:00:00.000Z'),
+        );
+        // decoy with a newer image, to prove --session wins over auto-locate
+        fs.writeFileSync(
+            path.join(dir, 'cccc-dddd.jsonl'),
+            imageLine('decoy-image', '2026-08-03T04:00:00.000Z'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        try {
+            const result = recoverPastedImages({
+                cwd,
+                session: 'aaaa-bbbb',
+                outDir: path.join(home, 'out'),
+            });
+            expect(result.transcript.endsWith('aaaa-bbbb.jsonl')).toBe(true);
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('exact-image');
+            expect(() => recoverPastedImages({ cwd, session: 'missing-id' })).toThrow(
+                'No transcript for session missing-id',
+            );
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+});
