@@ -82,6 +82,10 @@ And here is the whole loop inside the Codex desktop app: a text-only DeepSeek-V4
 
 ![Text-only DeepSeek reading a tweet screenshot in full detail via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
 
+Batch mode works too: drop three illustrations at once, and the model announces it will read them one by one through ModLens, then delivers all three descriptions in 21 seconds, design intent included.
+
+![Text-only DeepSeek reading three images in one go via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-batch.png)
+
 ## CLI reference
 
 ```bash

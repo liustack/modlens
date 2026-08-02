@@ -82,6 +82,10 @@ npx @liustack/modlens -i workflow.jpg
 
 ![纯文本 DeepSeek 通过 ModLens 读出推文截图的全部细节](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
 
+批量也不在话下：一次丢三张插画进去，模型自己说「三张图我都用 modlens 视觉桥接逐张读取」，21 秒后逐张交卷，连画面的设计意图都点出来了。
+
+![纯文本 DeepSeek 通过 ModLens 一次读完三张图](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-batch.png)
+
 ## CLI 参数
 
 ```bash
