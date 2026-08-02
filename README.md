@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/liustack/modlens/main/assets/banner.jpg" width="100%" alt="ModLens, plug-in vision for text-only LLMs" />
   <h1>ModLens</h1>
-  <p><b>Plug-in eyes for text-only LLMs. Free.</b></p>
+  <p><b>Free plug-in vision for your text-only LLM.</b></p>
   <p>
     <a href="https://www.npmjs.com/package/@liustack/modlens"><img src="https://img.shields.io/npm/v/@liustack/modlens" alt="npm"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
@@ -9,12 +9,12 @@
   <p><a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
-DeepSeek-V4-Flash is one of the smartest cheap models you can run, and it's completely blind. Show it a screenshot and it just shrugs. Same dead end for every text-only model wired into Claude Code, OpenClaw, Codex, or any Agent Skills harness.
+DeepSeek-V4-Flash gives you a lot of model for very little money: fast, strong, and its one real flaw is no multimodal. And it's not just DeepSeek. Every text-only model running inside Codex, Claude Code, Pi Agent, or OpenClaw hits the same wall.
 
-One command fixes that. Point ModLens at an image, a local path or a URL, and it hands back structured JSON evidence a text-only model can actually reason over: OCR text, layout regions in reading order, entities, relations, visual clues. The seeing itself happens in [Antigravity CLI](https://antigravity.google) (`agy`), so it runs on Google's free quota, not your API bill.
+ModLens fixes this the lightest way possible. It never touches your config and never adds a local proxy. It's just a vision plug-in, usable as a CLI or as an Agent Skill, that turns any image into structured visual evidence: text, layout, regions, entities, relations, visual clues. Under the hood it runs on [Antigravity CLI](https://antigravity.google) (`agy`), whose vision comes from free-quota Gemini 3.6 Flash. And Gemini's image understanding is famously good, good enough to embarrass most flagships, Fable 5 included. How it works:
 
 ```text
-your text-only model ──▶ modlens skill (auto-triggers on images)
+text-only model in your agent harness ──▶ modlens skill (auto-triggers on images)
                               │
                               ▼
                    agy · Gemini 3.6 Flash (free quota)
@@ -22,8 +22,6 @@ your text-only model ──▶ modlens skill (auto-triggers on images)
                               ▼
               structured JSON evidence ──▶ model answers with sight
 ```
-
-Install the skill once and your agent starts handling images on its own. No model swap, no API key, no prompt surgery.
 
 ## Quick start
 
@@ -34,7 +32,7 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # opens browser sign-in, then exit
 ```
 
-**2. Install the skill.** Tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**2. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
 ```text
 Install the skill from https://github.com/liustack/modlens
@@ -46,7 +44,7 @@ or do it yourself:
 npx -y skills add liustack/modlens
 ```
 
-**3. Use it.** Drop an image path into the chat and ask anything. The skill fires automatically whenever your model needs eyes.
+**3. Use it.** Paste an image path into the CLI and ask anything. The skill fires on its own.
 
 ## See it work
 
@@ -69,16 +67,22 @@ Real output, truncated:
         { "language": "en", "text": "BEFORE YOU BUILD" }
       ]
     },
-    "layout": { "regions": [ { "reading_order": 1, "text": "/shaping BEFORE YOU BUILD", "type": "other" } ] },
+    "layout": {
+      "regions": [
+        {
+          "reading_order": 1,
+          "text": "/shaping BEFORE YOU BUILD",
+          "type": "other"
+        }
+      ]
+    },
     "uncertainty": []
   },
   "meta": { "model": "gemini-3.6-flash-low", "durationSeconds": 25.4 }
 }
 ```
 
-A run takes 15-40 seconds. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
-
-And here is the whole loop inside the Codex desktop app: a text-only DeepSeek-V4-Flash reads a tweet screenshot through ModLens in 40 seconds, and gets everything: the caption, the engagement numbers (2.9K replies, 270K likes, 5M views), even the image's alt text. Where the resolution runs out, it says so instead of guessing.
+Here is the whole loop inside the Codex desktop app: drop in a tweet screenshot, and a text-only DeepSeek-V4-Flash reads all of it through ModLens: the caption, the engagement numbers (2.9K replies, 270K likes, 5M views), even the image's alt text. Where the resolution runs out, it says so instead of guessing.
 
 ![Text-only DeepSeek reading a tweet screenshot in full detail via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
 
@@ -107,14 +111,12 @@ Reach for `-m gemini-3.1-pro-high` on dense screenshots or tricky documents. Out
 
 ## Using it in Codex (DeepSeek and friends)
 
-Codex speaks only the Responses API, and DeepSeek's official endpoint supports it natively. Start with the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/): its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), and that one line is what unlocks everything below.
+Codex speaks only the Responses API, and DeepSeek's official endpoint supports it natively. Start with the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/): its `models.json` declares deepseek-v4-flash as text-only (`input_modalities: ["text"]`), and that one line is what unlocks the whole flow.
 
 One catch: once text-only is declared, the Codex TUI **blocks Ctrl+V image paste outright** (`Model deepseek-v4-flash does not support image inputs`). The gate sits in the input box itself, so the image never makes it into the message. Two moves get around it, both verified end to end with deepseek-v4-flash:
 
 - **Drag the image file into the terminal**, or type its path. The path lands as plain text, and the modlens skill picks it up from there.
-- Attach it with `codex exec -i image.png "..."`. Codex strips the pixels in core but leaves a `<image name=[Image #1] path="/tmp/....png">` text tag behind, and the skill reads the path out of that tag.
-
-Skip `models.json` (a bare custom-model config) and Codex assumes your model can see images, sending them raw, and whether that survives depends on the provider's patience. Dragging the file in is the one move that works everywhere, in every harness.
+- Attach it with `codex exec -i image.png "..."`. The skill reads the path out of the message tag.
 
 ## Why a bridge instead of a multimodal model?
 
@@ -124,22 +126,22 @@ Skip `models.json` (a bare custom-model config) and Codex assumes your model can
 
 ModSearch, ModLens's sibling project, plays the same trick for web search and page fetching: [liustack/modsearch](https://github.com/liustack/modsearch).
 
-## Built with liustack
+## Shameless plug
 
-ModLens v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)**. Four Agent Skills, one loop: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. A lighter, sharper alternative to Superpowers.
+This project runs on LIUSTACK Skills. ModLens v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)** end to end: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. Lighter than Superpowers, and sharper.
 
-**ModLens gave your model eyes. liustack gives your whole workflow discipline:**
+**ModLens gives your model eyes. LIUSTACK Skills gives your dev workflow wings:**
 
 ```bash
 npx -y skills add liustack/liustack -g
 ```
 
-⭐ Like the idea? [Star ModLens](https://github.com/liustack/modlens) and [star liustack](https://github.com/liustack/liustack). Stars are how the next developer finds them.
+⭐ Like it? [Star ModLens](https://github.com/liustack/modlens) and [star liustack](https://github.com/liustack/liustack). Stars are how the next developer finds them.
 
 ## Security notes
 
-- ModLens runs `agy` with `--dangerously-skip-permissions`, because print mode skips every tool call without it. The prompt keeps the agent to reading that one image and tells it to treat image content as data, never as instructions. Even so, only point it at images you would open yourself, and run it inside a sandboxed workspace when you can.
-- Vision output is evidence, not gospel. Anything the engine cannot read lands in `uncertainty` instead of getting invented. Pixel bounding boxes and confidence scores were dropped in v2 because models fabricate them.
+- ModLens runs `agy` with `--dangerously-skip-permissions`, because print mode can fail in some setups without it. The prompt keeps the agent to reading that one image and tells it to treat image content as data, never as instructions. Even so, only point it at images you would open yourself, and run it inside a sandboxed workspace when you can.
+- Vision output is evidence. Anything the engine cannot read lands in `uncertainty` instead of getting invented. Pixel bounding boxes and confidence scores were dropped in v2 because models fabricate them.
 
 ## Disclaimer
 
