@@ -41,6 +41,11 @@ export function projectSlug(cwd: string): string {
     return path.resolve(cwd).replace(/[/.]/g, '-');
 }
 
+// Transcripts are per-session files (the filename is the session id). A Bash
+// child has no env clue about which session invoked it, so instead of guessing
+// by file mtime we pick the transcript holding the globally newest user image
+// message. The session the user just pasted into necessarily owns it, which
+// keeps concurrent sessions in the same project from stealing the match.
 export function locateTranscript(cwd: string): string {
     const dir = path.join(os.homedir(), '.claude', 'projects', projectSlug(cwd));
     let entries: string[];
@@ -54,13 +59,58 @@ export function locateTranscript(cwd: string): string {
     if (entries.length === 0) {
         throw new Error(`No transcripts in ${dir}. Pass --transcript <path> to pick one manually.`);
     }
-    const newest = entries
-        .map((name) => {
-            const full = path.join(dir, name);
-            return { full, mtime: fs.statSync(full).mtimeMs };
-        })
-        .sort((a, b) => b.mtime - a.mtime)[0];
-    return newest.full;
+
+    let best: { full: string; timestamp: string } | null = null;
+    for (const name of entries) {
+        const full = path.join(dir, name);
+        const timestamp = lastImageTimestamp(full);
+        if (timestamp && (!best || timestamp > best.timestamp)) {
+            best = { full, timestamp };
+        }
+    }
+    if (!best) {
+        throw new Error(
+            `No pasted images found in any transcript under ${dir}. The user may not have pasted any, or the transcript format changed; ask for a file path instead.`,
+        );
+    }
+    return best.full;
+}
+
+function lastImageTimestamp(transcriptPath: string): string | null {
+    let raw: string;
+    try {
+        raw = fs.readFileSync(transcriptPath, 'utf-8');
+    } catch {
+        return null;
+    }
+    let latest: string | null = null;
+    for (const line of raw.split('\n')) {
+        if (!line.includes('"image"')) {
+            continue;
+        }
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(line);
+        } catch {
+            continue;
+        }
+        const entry = parsed as {
+            timestamp?: string;
+            message?: { role?: string; content?: unknown };
+        };
+        if (entry.message?.role !== 'user' || !Array.isArray(entry.message.content)) {
+            continue;
+        }
+        const hasImage = entry.message.content.some(
+            (block) =>
+                (block as { type?: string; source?: { type?: string } })?.type === 'image' &&
+                (block as { source?: { type?: string } }).source?.type === 'base64',
+        );
+        if (hasImage && entry.timestamp && (!latest || entry.timestamp > latest)) {
+            latest = entry.timestamp;
+        }
+    }
+    return latest;
 }
 
 interface ImageBlockRef {

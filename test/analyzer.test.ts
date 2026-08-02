@@ -429,3 +429,47 @@ describe('recover-paste', async () => {
     fs3.rmSync(dir, { recursive: true, force: true });
   });
 });
+
+describe('locateTranscript picks by newest image timestamp, not mtime', async () => {
+  const { recoverPastedImages } = await import('../src/recoverPaste.ts');
+  const os4 = await import('os');
+  const fs4 = await import('fs');
+  const path4 = await import('path');
+
+  it('resists mtime misdirection from concurrent sessions', () => {
+    const home = fs4.mkdtempSync(path4.join(os4.tmpdir(), 'modlens-home-'));
+    const cwd = '/tmp/proj';
+    const dir = path4.join(home, '.claude', 'projects', '-tmp-proj');
+    fs4.mkdirSync(dir, { recursive: true });
+
+    const img = (data: string, ts: string) =>
+      JSON.stringify({
+        timestamp: ts,
+        message: {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: Buffer.from(data).toString('base64') } },
+          ],
+        },
+      });
+
+    // session A: older image, but file touched later (concurrent text-only activity)
+    fs4.writeFileSync(path4.join(dir, 'a.jsonl'), img('old-image', '2026-08-03T01:00:00.000Z'));
+    // session B: the actual paste, newer image timestamp, older mtime
+    fs4.writeFileSync(path4.join(dir, 'b.jsonl'), img('new-image', '2026-08-03T02:00:00.000Z'));
+    const past = new Date(Date.now() - 60_000);
+    fs4.utimesSync(path4.join(dir, 'b.jsonl'), past, past);
+
+    const realHome = process.env.HOME;
+    process.env.HOME = home;
+    try {
+      const outDir = path4.join(home, 'out');
+      const result = recoverPastedImages({ cwd, outDir });
+      expect(result.transcript.endsWith('b.jsonl')).toBe(true);
+      expect(fs4.readFileSync(result.images[0].path).toString()).toBe('new-image');
+    } finally {
+      process.env.HOME = realHome;
+      fs4.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
