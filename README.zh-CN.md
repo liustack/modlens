@@ -78,9 +78,9 @@ npx @liustack/modlens -i workflow.jpg
 
 一次运行 15-40 秒。JSON 结构由 provider 层的 schema 硬性保证，你的 agent 不用再从 markdown 里抠 JSON 出来。
 
-整条链路在 Codex 桌面 App 里跑起来是这样：纯文本的 DeepSeek-V4-Flash 读完了一整页 X 个人主页，左边是模型的解析，右边是原始截图。它看不见图片，但它全读出来了。
+整条链路在 Codex 桌面 App 里跑起来是这样：一次丢三张插画进去，纯文本的 DeepSeek-V4-Flash 自己说「三张图我都用 modlens 视觉桥接逐张读取」，21 秒后逐张交卷，连画面的设计意图都点出来了。
 
-![纯文本 DeepSeek 通过 ModLens 读完一整页 X 主页](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
+![纯文本 DeepSeek 通过 ModLens 一次读完三张图](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-app.png)
 
 ## CLI 参数
 
