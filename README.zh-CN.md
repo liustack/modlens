@@ -90,6 +90,10 @@ npx @liustack/modlens -i workflow.jpg
 
 ![纯文本 DeepSeek 通过 ModLens 一次读完三张图](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-batch.png)
 
+压力测试：一张 128 个模型的智能对成本散点图。ModLens 读出双轴、对数刻度，把高亮的 DeepSeek V4 Flash 精准拎出来（成本约 $0.028、智能指数 50），还讲明白了性价比斩杀线。密集图表是识图模型最容易露怯的地方，这一关它扛住了。
+
+![纯文本 DeepSeek 通过 ModLens 读 128 个模型的散点图](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-chart.png)
+
 ## CLI 参数
 
 ```bash

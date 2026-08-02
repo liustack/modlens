@@ -90,6 +90,10 @@ Batch mode works too: drop three illustrations at once, and the model announces 
 
 ![Text-only DeepSeek reading three images in one go via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-batch.png)
 
+Stress test: a scatter plot of 128 models. ModLens pulls out the axes, the log scale, and the highlighted DeepSeek V4 Flash point at $0.028 and score 50, then walks through the cost-performance cutoff line. Dense charts are where vision models usually fold; this one holds.
+
+![Text-only DeepSeek reading a 128-model scatter plot via ModLens](https://raw.githubusercontent.com/liustack/modlens/main/assets/demo-codex-chart.png)
+
 ## CLI reference
 
 ```bash
