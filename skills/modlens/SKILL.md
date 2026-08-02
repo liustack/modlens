@@ -1,6 +1,6 @@
 ---
 name: modlens
-description: "Plug-in vision for text-only models. Use whenever the user shares an image (local path, screenshot, photo, chart, document scan, or image URL) and the active model cannot see images or has no vision tool. Runs the modlens CLI to convert the image into structured JSON evidence: OCR text, layout, semantics, visual clues."
+description: "Plug-in vision for text-only models. Use whenever the user shares an image (local path, screenshot, photo, chart, document scan, or image URL) and the active model cannot see images or has no vision tool. Runs the modlens CLI to convert the image into structured JSON evidence: OCR text, layout, semantics, visual clues. Also use when the user asks how to install, configure, or switch modlens providers (Gemini API key, OpenAI-compatible endpoints, Claude API or Claude Code CLI)."
 allowed-tools:
   - Bash
 ---
@@ -12,6 +12,7 @@ Use this skill when:
 - The user provides an image path or image URL and asks anything about it
 - The active model has no native vision (text-only model in a coding agent)
 - You need OCR text, layout, or chart/document structure as evidence before reasoning
+- The user asks how to configure modlens, get an API key for it, or switch its provider: follow `references/configure.md` and run the commands for them
 
 Do not use this skill for:
 
@@ -26,7 +27,7 @@ modlens --version
 
 If `modlens` is missing, run it via `npx @liustack/modlens` instead.
 
-ModLens supports four vision providers. Check what is configured:
+ModLens supports five vision providers. Check what is configured:
 
 ```bash
 modlens config show
@@ -36,8 +37,9 @@ modlens config show
 - **gemini-api**: needs `GEMINI_API_KEY` env or `modlens config set gemini-api.apiKey <key>` (free key from https://aistudio.google.com).
 - **openai**: any OpenAI-compatible multimodal endpoint; needs baseUrl + apiKey + model via env (`OPENAI_BASE_URL`, `OPENAI_API_KEY`) or `modlens config set openai.<field> <value>`.
 - **anthropic**: needs `ANTHROPIC_API_KEY` env or config; defaults to Claude Haiku.
+- **claude-cli**: rides an existing Claude Code login (`claude`), no key, Read-only tool permissions, local files only.
 
-`modlens config init` writes a starter config to `~/.modlens/config.json` when none exists.
+`modlens config init` writes a starter config to `~/.modlens/config.json` when none exists. Full setup recipes per provider: `references/configure.md`.
 
 ## Command
 
@@ -55,7 +57,7 @@ Optional flags:
 modlens -i <image> -o <output.json> -m <model> --prompt "<extra focus>" --timeout <ms>
 ```
 
-Speed expectations: `gemini-api` typically 5-10 seconds, `antigravity-cli` 15-40 seconds (full agent loop), `openai`/`anthropic` depend on the endpoint. For dense or hard images on antigravity-cli, try `-m gemini-3.1-pro-high`.
+Speed expectations: `gemini-api` typically 5-10 seconds, `antigravity-cli` 15-40 seconds and `claude-cli` 20-45 seconds (full agent loops), `openai`/`anthropic` depend on the endpoint. For dense or hard images on antigravity-cli, try `-m gemini-3.1-pro-high`.
 
 ## Finding the image path in the chat
 
@@ -85,7 +87,7 @@ Top level: `{ image, provider, result, meta }`. Inside `result`:
 - `visual`: colors and style clues
 - `uncertainty[]`: what the vision engine was unsure about
 
-Structure is enforced by schema on antigravity-cli (`--json-schema`), gemini-api (`responseJsonSchema`), and anthropic (forced tool call). The openai route uses a template prompt plus shape validation and fails loudly on mismatch.
+Structure is enforced by schema on antigravity-cli and claude-cli (`--json-schema`), gemini-api (`responseJsonSchema`), and anthropic (forced tool call). The openai route uses a template prompt plus shape validation and fails loudly on mismatch.
 
 ## Failure Handling
 

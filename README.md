@@ -111,7 +111,7 @@ Reach for `-m gemini-3.1-pro-high` on dense screenshots or tricky documents. Out
 
 ## Providers and config
 
-ModLens ships four vision providers. `antigravity-cli` stays the default: zero keys, pure free quota.
+ModLens ships five vision providers. `antigravity-cli` stays the default: zero keys, pure free quota.
 
 | Provider | Needs | Typical speed | Notes |
 | :-- | :-- | :-- | :-- |
@@ -119,6 +119,7 @@ ModLens ships four vision providers. `antigravity-cli` stays the default: zero k
 | `gemini-api` | free AI Studio key | 5-10s | fastest free route, schema enforced server-side |
 | `openai` | baseUrl + apiKey + model | endpoint-dependent | any OpenAI-compatible multimodal endpoint (qwen-vl, GLM, ...) |
 | `anthropic` | `ANTHROPIC_API_KEY` | a few seconds | Claude Haiku by default, schema via forced tool call |
+| `claude-cli` | Claude Code signed in | 20-45s | no key, rides your Claude subscription, Read-only permissions |
 
 Config lives in `~/.modlens/config.json`. Environment variables override the file (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `ANTHROPIC_API_KEY`), and CLI flags override everything.
 

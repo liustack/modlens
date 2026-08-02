@@ -111,7 +111,7 @@ modlens -i <图片路径或 URL> [选项]
 
 ## Provider 与配置
 
-ModLens 内置四个视觉 provider，默认还是 `antigravity-cli`：零 key，纯免费额度。
+ModLens 内置五个视觉 provider，默认还是 `antigravity-cli`：零 key，纯免费额度。
 
 | Provider | 需要什么 | 速度 | 说明 |
 | :-- | :-- | :-- | :-- |
@@ -119,6 +119,7 @@ ModLens 内置四个视觉 provider，默认还是 `antigravity-cli`：零 key�
 | `gemini-api` | 免费 AI Studio key | 5-10 秒 | 最快的免费路线，服务端强制 schema |
 | `openai` | baseUrl + apiKey + model | 看端点 | 任何 OpenAI 兼容的多模态端点（qwen-vl、GLM 等） |
 | `anthropic` | `ANTHROPIC_API_KEY` | 几秒 | 默认 Claude Haiku，强制工具调用保 schema |
+| `claude-cli` | Claude Code 已登录 | 20-45 秒 | 零 key，吃你的 Claude 订阅额度，只放行 Read 工具 |
 
 配置放在 `~/.modlens/config.json`，环境变量能盖过它（`GEMINI_API_KEY`、`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`ANTHROPIC_API_KEY`），CLI 参数最大。
 

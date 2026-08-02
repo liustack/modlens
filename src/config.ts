@@ -109,6 +109,7 @@ export const CONFIG_TEMPLATE: ModlensConfig = {
         'gemini-api': { apiKey: '', model: 'gemini-3.6-flash' },
         openai: { baseUrl: '', apiKey: '', model: '' },
         anthropic: { apiKey: '', model: 'claude-haiku-4-5-20251001' },
+        'claude-cli': { model: 'haiku' },
     },
 };
 
