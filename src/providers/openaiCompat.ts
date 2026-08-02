@@ -2,7 +2,7 @@
 // accepts image_url content (DashScope qwen-vl, OpenAI, GLM, ...). No portable
 // schema enforcement across vendors, so the schema rides in the prompt and the
 // response goes through tolerant JSON extraction.
-import { extractJson, fetchRemoteImageBase64, readLocalImageBase64 } from '../imageInput.ts';
+import { extractJson, readLocalImageBase64 } from '../imageInput.ts';
 import { buildVisionPrompt } from '../prompt.ts';
 import type {
     BuildProviderInvocationOptions,
@@ -103,11 +103,6 @@ function toDataUrl(image: { data: string; mimeType: string }): string {
     return `data:${image.mimeType};base64,${image.data}`;
 }
 
-// Remote URLs are passed through untouched; some gateways cannot fetch
-// arbitrary URLs, in which case download-and-inline happens at call time.
-export async function remoteAsDataUrl(url: string, timeoutMs: number): Promise<string> {
-    return toDataUrl(await fetchRemoteImageBase64(url, timeoutMs));
-}
 
 function truncate(text: string): string {
     return text.length > 300 ? `${text.slice(0, 300)}...` : text;

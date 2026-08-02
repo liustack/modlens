@@ -113,6 +113,15 @@ modlens -i <image-path-or-url> [options]
 
 Reach for `-m gemini-3.1-pro-high` on dense screenshots or tricky documents. Output contract: [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md).
 
+Two more subcommands: `modlens config <init|set|show>` manages providers and keys (details below), and `modlens recover-paste` rescues images pasted into Claude Code:
+
+```bash
+modlens recover-paste                 # newest pasted image, path printed as JSON
+modlens recover-paste --count 3       # the three newest
+modlens recover-paste --session <id>  # exact session (skills pass ${CLAUDE_SESSION_ID})
+# --transcript <path> overrides everything; --cwd <dir> sets the project directory
+```
+
 ## Providers and config
 
 ModLens ships five vision providers. `antigravity-cli` stays the default: zero keys, pure free quota.

@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite';
+import { builtinModules } from 'module';
 import { resolve } from 'path';
+import { defineConfig } from 'vite';
 import pkg from './package.json' with { type: 'json' };
 
 export default defineConfig({
@@ -13,14 +14,12 @@ export default defineConfig({
             fileName: 'main',
         },
         rollupOptions: {
+            // Externalize deps and every Node built-in (bare and node:-prefixed),
+            // so adding a new built-in import can never silently bundle to undefined.
             external: [
                 'commander',
-                // Node.js built-ins
-                'child_process',
-                'crypto',
-                'fs',
-                'path',
-                'os'
+                ...builtinModules,
+                ...builtinModules.map((name) => `node:${name}`),
             ],
         },
         target: 'node18',

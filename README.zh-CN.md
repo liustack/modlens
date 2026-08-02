@@ -113,6 +113,15 @@ modlens -i <图片路径或 URL> [选项]
 
 截图信息密集或文档难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modlens/references/output-schema.md](skills/modlens/references/output-schema.md)。
 
+另外两个子命令：`modlens config <init|set|show>` 管 provider 和 key（下文详述），`modlens recover-paste` 抢救粘贴进 Claude Code 的图片：
+
+```bash
+modlens recover-paste                 # 捞最新一张，路径以 JSON 打印
+modlens recover-paste --count 3       # 捞最近三张
+modlens recover-paste --session <id>  # 精确会话（skill 会传 ${CLAUDE_SESSION_ID}）
+# --transcript <path> 优先级最高，--cwd <dir> 指定项目目录
+```
+
 ## Provider 与配置
 
 ModLens 内置五个视觉 provider，默认还是 `antigravity-cli`：零 key，纯免费额度。
