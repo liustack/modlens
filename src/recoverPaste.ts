@@ -26,6 +26,8 @@ export interface RecoveredImage {
     path: string;
     mediaType: string;
     bytes: number;
+    /** Original attachment name, when the harness stored one (opencode does). */
+    filename?: string;
 }
 
 export interface RecoverResult {
@@ -52,6 +54,7 @@ const EXT_BY_MIME: Record<string, string> = {
 interface ImageBlockRef {
     mediaType: string;
     data: string;
+    filename?: string;
 }
 
 /** A located source of pasted images: a JSONL transcript or a SQLite db. */
@@ -243,6 +246,7 @@ export function opencodeDbPath(): string {
 interface SqliteRow {
     data: string;
     time_created: number;
+    session_id: string;
 }
 
 function opencodeQuery(dbPath: string, cwd: string, sessionId?: string): SqliteRow[] {
@@ -264,13 +268,16 @@ function opencodeQuery(dbPath: string, cwd: string, sessionId?: string): SqliteR
     const db = new DatabaseSync(dbPath, { readOnly: true });
     try {
         const resolved = path.resolve(cwd);
+        // opencode's bash tool runs at the repo root while session.directory
+        // records where the session was launched (possibly a subdirectory), so
+        // directories must match by prefix in both directions, not exactly.
         const sessionFilter = sessionId
             ? `AND (session.id = ? OR session.slug = ?)`
-            : `AND session.directory = ?`;
-        const params = sessionId ? [sessionId, sessionId] : [resolved];
+            : `AND (session.directory = ? OR session.directory LIKE ? || '/%' OR ? LIKE session.directory || '/%')`;
+        const params = sessionId ? [sessionId, sessionId] : [resolved, resolved, resolved];
         const rows = db
             .prepare(
-                `SELECT part.data AS data, part.time_created AS time_created
+                `SELECT part.data AS data, part.time_created AS time_created, part.session_id AS session_id
                  FROM part
                  JOIN message ON message.id = part.message_id
                  JOIN session ON session.id = part.session_id
@@ -290,13 +297,18 @@ function opencodeImagesFromRows(rows: SqliteRow[]): ImageBlockRef[] {
     const images: ImageBlockRef[] = [];
     for (const row of rows) {
         try {
-            const part = JSON.parse(row.data) as { type?: string; mime?: string; url?: string };
+            const part = JSON.parse(row.data) as {
+                type?: string;
+                mime?: string;
+                url?: string;
+                filename?: string;
+            };
             if (part.type !== 'file' || !part.mime?.startsWith('image/')) {
                 continue;
             }
             const match = /^data:[^;]+;base64,(.+)$/.exec(part.url ?? '');
             if (match) {
-                images.push({ mediaType: part.mime, data: match[1] });
+                images.push({ mediaType: part.mime, data: match[1], filename: part.filename });
             }
         } catch {
             // skip malformed parts
@@ -313,18 +325,24 @@ const opencodeAdapter: HarnessAdapter = {
         if (!fs.existsSync(dbPath)) {
             return null;
         }
-        const rows = opencodeQuery(dbPath, cwd);
-        const images = opencodeImagesFromRows(rows);
-        if (images.length === 0) {
+        // One source = one session, like the JSONL adapters: scope to the
+        // session owning the newest image part, so other sessions in the same
+        // project cannot smuggle extra images into the result.
+        const withImages = opencodeQuery(dbPath, cwd)
+            .map((row) => ({ row, images: opencodeImagesFromRows([row]) }))
+            .filter((entry) => entry.images.length > 0);
+        if (withImages.length === 0) {
             return null;
         }
+        const newest = withImages[withImages.length - 1];
+        const scoped = withImages.filter((entry) => entry.row.session_id === newest.row.session_id);
         return {
             ref: {
                 harness: 'opencode',
                 location: dbPath,
-                extract: () => opencodeImagesFromRows(opencodeQuery(dbPath, cwd)),
+                extract: () => scoped.flatMap((entry) => entry.images),
             },
-            timestamp: rows[rows.length - 1].time_created,
+            timestamp: newest.row.time_created,
         };
     },
     findSession: (cwd, sessionId) => {
@@ -426,7 +444,15 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
         const ext = EXT_BY_MIME[image.mediaType] ?? 'png';
         const filePath = path.join(outDir, `paste-${hash}.${ext}`);
         fs.writeFileSync(filePath, buffer);
-        return { path: filePath, mediaType: image.mediaType, bytes: buffer.length };
+        const recovered: RecoveredImage = {
+            path: filePath,
+            mediaType: image.mediaType,
+            bytes: buffer.length,
+        };
+        if (image.filename) {
+            recovered.filename = image.filename;
+        }
+        return recovered;
     });
 
     return { harness: source.harness, transcript: source.location, images };

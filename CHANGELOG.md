@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.1 - 2026-08-03
+
+- Fix: opencode runs shell commands at the repo root while sessions record the directory they were launched in. Exact directory matching made recovery miss the real paste and fall through to stale Claude Code transcripts of the same project, recovering the wrong images (caught in a live session). Directories now match by prefix in both directions, and recovery is scoped to the single opencode session owning the newest image.
+- Recovered entries report `filename` (the original attachment name) when the harness stored one.
+- Skill: recovered paths are oldest to newest so analyze the last one first, match `filename` when present, run every command yourself instead of delegating to the user, and treat a `harness` value that differs from the harness you are running in as suspect.
+
 ## 2.6.0 - 2026-08-03
 
 - `recover-paste` now supports OpenCode: pasted/attached images are read from its SQLite store (`~/.local/share/opencode/opencode.db`) via node:sqlite (Node 22.5+, lazy-loaded so older Nodes keep the JSONL harnesses). Recovery internals refactored into per-harness adapters (Claude Code, Pi, OpenCode) sharing one newest-image picker. Verified against a real opencode + deepseek session.
