@@ -71,7 +71,7 @@ program
 program
     .command('recover-paste')
     .description(
-        'Recover images pasted into Claude Code from the session transcript (they never hit disk otherwise)',
+        'Recover images pasted into Claude Code, Pi, or OpenCode from local session storage (they never hit disk otherwise)',
     )
     .option('--count <n>', 'How many recent pasted images to recover', '1')
     .option('--out-dir <path>', 'Directory to write recovered images to')
@@ -79,7 +79,11 @@ program
         '--session <id>',
         'Claude Code session id for exact targeting (skills get it via ${CLAUDE_SESSION_ID})',
     )
-    .option('--transcript <path>', 'Explicit transcript .jsonl (overrides --session)')
+    .option('--transcript <path>', 'Explicit transcript .jsonl or .db (overrides --session)')
+    .option(
+        '--harness <name>',
+        'Force the storage scope: claude-code, pi, opencode, or none (default: auto-detect via process ancestry and env)',
+    )
     .option('--cwd <path>', 'Project directory the image was pasted in', process.cwd())
     .action(async (options) => {
         try {
@@ -93,6 +97,7 @@ program
                 transcript: options.transcript,
                 session: options.session,
                 cwd: options.cwd,
+                harness: options.harness,
             });
             process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
         } catch (error) {

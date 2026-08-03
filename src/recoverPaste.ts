@@ -16,6 +16,7 @@
 //
 // Storage layouts are internal implementation details of those tools, so this
 // can break without notice; callers should fall back to asking for a path.
+import * as childProcess from 'child_process';
 import * as crypto from 'crypto';
 import { createRequire } from 'module';
 import * as fs from 'fs';
@@ -34,6 +35,8 @@ export interface RecoverResult {
     harness: string;
     transcript: string;
     images: RecoveredImage[];
+    /** The harness this process was detected to run inside, when detection fired. */
+    detected?: string;
 }
 
 export interface RecoverOptions {
@@ -42,6 +45,8 @@ export interface RecoverOptions {
     session?: string;
     count?: number;
     outDir?: string;
+    /** Force the harness scope, bypassing detection ('none' disables scoping). */
+    harness?: string;
 }
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -362,6 +367,84 @@ const opencodeAdapter: HarnessAdapter = {
     },
 };
 
+// ---------- harness detection ----------
+//
+// Recovery must read the storage of the harness this command is actually
+// running inside; racing every store by timestamp lets one tool's stale
+// sessions hijack another tool's paste. The primary signal is the process
+// ancestry: the nearest known harness among our parent processes is the one
+// that spawned this command, which also resolves nested setups (opencode
+// launched from inside Claude Code) to the innermost harness, the one whose
+// input box received the paste. Env fingerprints are the fallback: Claude Code
+// injects CLAUDECODE/CLAUDE_CODE_SESSION_ID, pi sets PI_CODING_AGENT, codex
+// injects CODEX_THREAD_ID; opencode injects nothing, which is exactly why
+// ancestry comes first.
+
+const HARNESS_BY_BASENAME: Record<string, string> = {
+    claude: 'claude-code',
+    'claude-code': 'claude-code',
+    pi: 'pi',
+    opencode: 'opencode',
+    codex: 'codex',
+};
+
+/** Walk the ppid chain in a `ps -Ao pid=,ppid=,command=` table, nearest first. */
+export function harnessFromPsTable(psOutput: string, startPid: number): string | null {
+    const table = new Map<number, { ppid: number; command: string }>();
+    for (const line of psOutput.split('\n')) {
+        const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/.exec(line);
+        if (match) {
+            table.set(Number(match[1]), { ppid: Number(match[2]), command: match[3] });
+        }
+    }
+    let pid: number | undefined = table.get(startPid)?.ppid;
+    for (let hops = 0; hops < 50 && pid !== undefined && pid > 1; hops++) {
+        const proc = table.get(pid);
+        if (!proc) {
+            return null;
+        }
+        // Only the first few tokens (executable, node shim flags, script path):
+        // deeper tokens are free-text arguments and would false-positive.
+        for (const token of proc.command.trim().split(/\s+/).slice(0, 8)) {
+            const mapped = HARNESS_BY_BASENAME[path.basename(token)];
+            if (mapped) {
+                return mapped;
+            }
+        }
+        pid = proc.ppid;
+    }
+    return null;
+}
+
+function detectHarness(): string | null {
+    const override = process.env.MODLENS_HARNESS;
+    if (override) {
+        return override === 'none' ? null : override;
+    }
+    try {
+        const ps = childProcess.execFileSync('ps', ['-Ao', 'pid=,ppid=,command='], {
+            encoding: 'utf-8',
+            maxBuffer: 16 * 1024 * 1024,
+        });
+        const found = harnessFromPsTable(ps, process.pid);
+        if (found) {
+            return found;
+        }
+    } catch {
+        // ps unavailable (e.g. Windows): fall through to env fingerprints
+    }
+    if (process.env.PI_CODING_AGENT) {
+        return 'pi';
+    }
+    if (process.env.CODEX_THREAD_ID || process.env.CODEX_SANDBOX) {
+        return 'codex';
+    }
+    if (process.env.CLAUDECODE || process.env.CLAUDE_CODE_SESSION_ID) {
+        return 'claude-code';
+    }
+    return null;
+}
+
 // ---------- orchestration ----------
 
 const ADAPTERS: HarnessAdapter[] = [claudeAdapter, piAdapter, opencodeAdapter];
@@ -380,9 +463,9 @@ function sourceForExplicitPath(filePath: string): SourceRef {
     return jsonlSource('claude-code', filePath, claudeExtractLine);
 }
 
-export function locateSource(cwd: string): SourceRef {
+export function locateSource(cwd: string, adapters: HarnessAdapter[] = ADAPTERS): SourceRef {
     let best: { ref: SourceRef; timestamp: number } | null = null;
-    for (const adapter of ADAPTERS) {
+    for (const adapter of adapters) {
         let candidate: { ref: SourceRef; timestamp: number } | null = null;
         try {
             candidate = adapter.findNewest(cwd);
@@ -394,7 +477,7 @@ export function locateSource(cwd: string): SourceRef {
         }
     }
     if (!best) {
-        const dirs = ADAPTERS.map((a) => a.describe(cwd)).join(' , ');
+        const dirs = adapters.map((a) => a.describe(cwd)).join(' , ');
         throw new Error(
             `No pasted images found in any session storage for this directory (looked in: ${dirs}). The user may not have pasted any, or the storage format changed; ask for a file path instead.`,
         );
@@ -402,8 +485,12 @@ export function locateSource(cwd: string): SourceRef {
     return best.ref;
 }
 
-export function sourceForSession(cwd: string, sessionId: string): SourceRef {
-    for (const adapter of ADAPTERS) {
+export function sourceForSession(
+    cwd: string,
+    sessionId: string,
+    adapters: HarnessAdapter[] = ADAPTERS,
+): SourceRef {
+    for (const adapter of adapters) {
         try {
             const ref = adapter.findSession(cwd, sessionId);
             if (ref) {
@@ -413,7 +500,7 @@ export function sourceForSession(cwd: string, sessionId: string): SourceRef {
             // keep looking in the other harnesses
         }
     }
-    const dirs = ADAPTERS.map((a) => a.describe(cwd)).join(' , ');
+    const dirs = adapters.map((a) => a.describe(cwd)).join(' , ');
     throw new Error(
         `No session ${sessionId} with pasted images under this project (looked in: ${dirs}). Check --cwd, or drop --session to auto-locate by newest pasted image.`,
     );
@@ -421,11 +508,42 @@ export function sourceForSession(cwd: string, sessionId: string): SourceRef {
 
 export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult {
     const cwd = options.cwd ?? process.cwd();
-    const source = options.transcript
-        ? sourceForExplicitPath(options.transcript)
-        : options.session
-          ? sourceForSession(cwd, options.session)
-          : locateSource(cwd);
+
+    const detected = options.transcript ? null : (options.harness ?? detectHarness());
+    if (detected === 'codex') {
+        throw new Error(
+            'This is a Codex session: pasted images already exist as temp files, and each image tag in the message carries its path. Read the path from the tag instead of running recover-paste.',
+        );
+    }
+    const scoped: string | null = detected && detected !== 'none' ? detected : null;
+    if (scoped && !ADAPTERS.some((adapter) => adapter.name === scoped)) {
+        throw new Error(
+            `Unknown harness "${scoped}". Supported: claude-code, pi, opencode (or none to scan all).`,
+        );
+    }
+    const adapters = scoped ? ADAPTERS.filter((adapter) => adapter.name === scoped) : ADAPTERS;
+
+    // Claude Code injects the session id into tool environments, which lets us
+    // target the exact transcript without the skill relaying anything. It can
+    // point at an imageless transcript (e.g. a subagent session), so fall back
+    // to scanning instead of failing when it does not pan out.
+    let source: SourceRef | null = null;
+    if (options.transcript) {
+        source = sourceForExplicitPath(options.transcript);
+    } else if (options.session) {
+        source = sourceForSession(cwd, options.session, adapters);
+    } else {
+        const envSession =
+            detected === 'claude-code' ? process.env.CLAUDE_CODE_SESSION_ID : undefined;
+        if (envSession) {
+            try {
+                source = sourceForSession(cwd, envSession, adapters);
+            } catch {
+                source = null;
+            }
+        }
+        source ??= locateSource(cwd, adapters);
+    }
     const count = Math.max(1, options.count ?? 1);
     const outDir = options.outDir ?? path.join(os.tmpdir(), 'modlens-paste');
 
@@ -455,7 +573,11 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
         return recovered;
     });
 
-    return { harness: source.harness, transcript: source.location, images };
+    const result: RecoverResult = { harness: source.harness, transcript: source.location, images };
+    if (scoped) {
+        result.detected = scoped;
+    }
+    return result;
 }
 
 // Back-compat named export used by tests for JSONL extraction.

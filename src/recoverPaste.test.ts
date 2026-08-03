@@ -1,13 +1,31 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     claudeProjectSlug,
     extractUserImages,
+    harnessFromPsTable,
     piSessionSlug,
     recoverPastedImages,
 } from './recoverPaste.ts';
+
+// The suite itself runs inside a real harness (its process ancestry and env
+// would trip detection), so default every test to unscoped scanning and let
+// detection tests opt in explicitly.
+const REAL_SESSION_ENV = process.env.CLAUDE_CODE_SESSION_ID;
+beforeEach(() => {
+    process.env.MODLENS_HARNESS = 'none';
+    delete process.env.CLAUDE_CODE_SESSION_ID;
+});
+afterEach(() => {
+    delete process.env.MODLENS_HARNESS;
+    if (REAL_SESSION_ENV === undefined) {
+        delete process.env.CLAUDE_CODE_SESSION_ID;
+    } else {
+        process.env.CLAUDE_CODE_SESSION_ID = REAL_SESSION_ENV;
+    }
+});
 
 function imageLine(data: string, timestamp: string, mediaType = 'image/png'): string {
     return JSON.stringify({
@@ -359,5 +377,144 @@ describe('opencode harness support', async () => {
             expect(result.harness).toBe('opencode');
             expect(fs.readFileSync(result.images[0].path).toString()).toBe('oc-newer');
         });
+    });
+});
+
+describe('harness detection', () => {
+    function psTable(rows: Array<[number, number, string]>): string {
+        return rows.map(([pid, ppid, command]) => ` ${pid} ${ppid} ${command}`).join('\n');
+    }
+
+    it('finds the nearest harness ancestor by executable basename', () => {
+        const ps = psTable([
+            [100, 1, '/usr/local/bin/node --no-warnings /Users/x/.claude/local/claude'],
+            [200, 100, '/bin/zsh -c modlens'],
+            [300, 200, 'node /Users/x/projects/modlens/dist/main.js recover-paste'],
+        ]);
+        expect(harnessFromPsTable(ps, 300)).toBe('claude-code');
+    });
+
+    it('resolves nesting to the innermost harness', () => {
+        // opencode launched from inside a Claude Code bash: opencode is nearer.
+        const ps = psTable([
+            [100, 1, 'node /Users/x/.claude/local/claude'],
+            [200, 100, '/bin/zsh -c "opencode run ..."'],
+            [300, 200, '/Users/x/.cache/opencode/bin/opencode run analyze'],
+            [400, 300, '/bin/sh -c modlens'],
+            [500, 400, 'node /Users/x/modlens/dist/main.js recover-paste'],
+        ]);
+        expect(harnessFromPsTable(ps, 500)).toBe('opencode');
+    });
+
+    it('ignores free-text arguments beyond the leading tokens', () => {
+        const ps = psTable([
+            [100, 1, '/opt/homebrew/bin/fish'],
+            [
+                200, 100,
+                'sometool serve --flag a b c d e f "please check the pi and opencode docs"',
+            ],
+            [300, 200, 'node dist/main.js recover-paste'],
+        ]);
+        expect(harnessFromPsTable(ps, 300)).toBeNull();
+    });
+
+    it('returns null for terminals with no harness ancestor', () => {
+        const ps = psTable([
+            [100, 1, '/opt/homebrew/bin/fish'],
+            [300, 100, 'node dist/main.js recover-paste'],
+        ]);
+        expect(harnessFromPsTable(ps, 300)).toBeNull();
+    });
+
+    it('scopes recovery to the detected harness even when another store has newer images', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-scope-'));
+        const cwd = '/tmp/proj';
+        const claudeDir = path.join(home, '.claude', 'projects', '-tmp-proj');
+        fs.mkdirSync(claudeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(claudeDir, 'c.jsonl'),
+            imageLine('claude-newer', '2026-08-04T09:00:00.000Z'),
+        );
+        const piDir = path.join(home, '.pi', 'agent', 'sessions', '--tmp-proj--');
+        fs.mkdirSync(piDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(piDir, '2026-08-04T01-00-00-000Z_abcd.jsonl'),
+            piImageLine('pi-older', '2026-08-04T01:00:00.000Z'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        process.env.MODLENS_HARNESS = 'pi';
+        try {
+            const result = recoverPastedImages({ cwd, outDir: path.join(home, 'out') });
+            expect(result.harness).toBe('pi');
+            expect(result.detected).toBe('pi');
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('pi-older');
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('refuses to fall through to other stores when the detected harness has nothing', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-scope2-'));
+        const cwd = '/tmp/proj';
+        const claudeDir = path.join(home, '.claude', 'projects', '-tmp-proj');
+        fs.mkdirSync(claudeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(claudeDir, 'c.jsonl'),
+            imageLine('stale-claude', '2026-08-04T09:00:00.000Z'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        process.env.MODLENS_HARNESS = 'opencode';
+        try {
+            expect(() => recoverPastedImages({ cwd, outDir: path.join(home, 'out') })).toThrow(
+                /No pasted images/,
+            );
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('rejects recover-paste in codex with path-tag guidance', () => {
+        process.env.MODLENS_HARNESS = 'codex';
+        expect(() => recoverPastedImages({ cwd: '/tmp/nowhere' })).toThrow(/Codex session/);
+    });
+
+    it('auto-targets the exact Claude Code session from the injected env var', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-envsess-'));
+        const cwd = '/tmp/proj';
+        const claudeDir = path.join(home, '.claude', 'projects', '-tmp-proj');
+        fs.mkdirSync(claudeDir, { recursive: true });
+        // decoy holds the newer image; env session must still win
+        fs.writeFileSync(
+            path.join(claudeDir, 'decoy.jsonl'),
+            imageLine('decoy-newer', '2026-08-04T09:00:00.000Z'),
+        );
+        fs.writeFileSync(
+            path.join(claudeDir, 'env-sess.jsonl'),
+            imageLine('mine', '2026-08-04T01:00:00.000Z'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        process.env.MODLENS_HARNESS = 'claude-code';
+        process.env.CLAUDE_CODE_SESSION_ID = 'env-sess';
+        try {
+            const result = recoverPastedImages({ cwd, outDir: path.join(home, 'out') });
+            expect(result.transcript.endsWith('env-sess.jsonl')).toBe(true);
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('mine');
+
+            // an env session with no transcript must fall back to scanning
+            process.env.CLAUDE_CODE_SESSION_ID = 'gone-sess';
+            const fallback = recoverPastedImages({ cwd, outDir: path.join(home, 'out') });
+            expect(fs.readFileSync(fallback.images[0].path).toString()).toBe('decoy-newer');
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
     });
 });

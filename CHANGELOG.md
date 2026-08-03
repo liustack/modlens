@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.0 - 2026-08-04
+
+- `recover-paste` now identifies the harness it is running inside before touching any storage: process ancestry first (the nearest known harness among parent processes, which also resolves nested setups to the innermost tool), env fingerprints second (`CLAUDECODE`, `PI_CODING_AGENT`, `CODEX_THREAD_ID`). Detection scopes recovery to that harness's store only, so another tool's stale sessions can never hijack a paste; Codex is refused outright with path-tag guidance. `--harness <name|none>` overrides, output gains a `detected` field.
+- In Claude Code, recovery auto-targets the exact session from the injected `CLAUDE_CODE_SESSION_ID`, falling back to newest-image scanning when that transcript holds no images (subagent sessions).
+
 ## 2.6.1 - 2026-08-03
 
 - Fix: opencode runs shell commands at the repo root while sessions record the directory they were launched in. Exact directory matching made recovery miss the real paste and fall through to stale Claude Code transcripts of the same project, recovering the wrong images (caught in a live session). Directories now match by prefix in both directions, and recovery is scoped to the single opencode session owning the newest image.
