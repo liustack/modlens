@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.1 - 2026-08-04
+
+- Docs: per-harness skill discovery paths (`~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/` for Pi and OpenCode), OpenCode + DeepSeek setup recipe, and the four-harness live verification matrix (Claude Code session-id recovery, OpenCode full skill loop on DeepSeek, Pi store isolation, Codex refusal).
+
 ## 2.7.0 - 2026-08-04
 
 - `recover-paste` now identifies the harness it is running inside before touching any storage: process ancestry first (the nearest known harness among parent processes, which also resolves nested setups to the innermost tool), env fingerprints second (`CLAUDECODE`, `PI_CODING_AGENT`, `CODEX_THREAD_ID`). Detection scopes recovery to that harness's store only, so another tool's stale sessions can never hijack a paste; Codex is refused outright with path-tag guidance. `--harness <name|none>` overrides, output gains a `detected` field.

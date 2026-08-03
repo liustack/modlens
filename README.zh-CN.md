@@ -44,6 +44,8 @@ agy    # 浏览器完成登录后退出
 npx -y skills add liustack/modlens
 ```
 
+各家 harness 找 skill 的位置不一样：Claude Code 读 `~/.claude/skills/`，Codex 读 `~/.codex/skills/`，Pi 和 OpenCode 读 `~/.agents/skills/`。软链接在哪家都好使，把 skill 目录链一次，各家永远用最新版。
+
 **3. 用起来。** 在 cli 里粘贴个图片路径，随便问，skill 会自动触发。
 
 ## 看看效果
@@ -158,7 +160,9 @@ Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官�
 
 不用任何配置：把图片文件拖进终端，或手打路径，skill 直接接手。
 
-粘贴要多说两句。走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型时，Claude Code 粘贴的图片从不写普通临时文件，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。但图片字节没有蒸发：Claude Code 在网关看到消息之前，就把每条用户消息（含图片）原样写进了本地会话记录。`modlens recover-paste` 干的就是这件事：从会话记录里把最近粘贴的图捞回来，落成真实文件路径，直接喂给 `modlens -i`。skill 看到占位符会自动跑这一步。已在真实的 DeepSeek 网关 Claude Code 会话里端到端验证：粘贴一张图，模型只看到占位符，按会话 ID 捞回文件，带着完整图片内容回答。会话记录本来就是一个会话一个文件。skill 可以通过 `--session` 传入精确会话（Claude Code 从 v2.1.9 起会把 `${CLAUDE_SESSION_ID}` 替换进 skill 文本），不传时按消息时间戳挑「持有最新粘贴图」的那份，两条路都不怕同项目并发多开。[Pi](https://github.com/earendil-works/pi) 的会话存储和它同构（`~/.pi/agent/sessions/`，图片以 base64 存 JSONL）。[OpenCode](https://github.com/sst/opencode) 换了个存法，图片以 data URL 塞进 SQLite（`~/.local/share/opencode/opencode.db`，读它需要 Node 22.5+ 的 node:sqlite）。`recover-paste` 会先搞清楚自己正跑在哪家宿主里（沿进程祖先链往上找，再核对 `CLAUDECODE`、`PI_CODING_AGENT`、`CODEX_THREAD_ID` 这些环境变量指纹），然后只读那一家的存储，别家的陈年会话再也没机会冒充。在 Claude Code 里还会直接用注入的会话 ID 精确定位，在 Codex 里则干脆拒绝执行并把你指回 path tag。实在识别不出来才退回按最新图片时间戳在三家赛跑。每家都拿真实会话验证过。一句老实话：会话记录格式是这些工具的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
+粘贴要多说两句。走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型时，Claude Code 粘贴的图片从不写普通临时文件，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。但图片字节没有蒸发：Claude Code 在网关看到消息之前，就把每条用户消息（含图片）原样写进了本地会话记录。`modlens recover-paste` 干的就是这件事：从会话记录里把最近粘贴的图捞回来，落成真实文件路径，直接喂给 `modlens -i`。skill 看到占位符会自动跑这一步。已在真实的 DeepSeek 网关 Claude Code 会话里端到端验证：粘贴一张图，模型只看到占位符，按会话 ID 捞回文件，带着完整图片内容回答。会话记录本来就是一个会话一个文件。skill 可以通过 `--session` 传入精确会话（Claude Code 从 v2.1.9 起会把 `${CLAUDE_SESSION_ID}` 替换进 skill 文本），不传时按消息时间戳挑「持有最新粘贴图」的那份，两条路都不怕同项目并发多开。[Pi](https://github.com/earendil-works/pi) 的会话存储和它同构（`~/.pi/agent/sessions/`，图片以 base64 存 JSONL）。[OpenCode](https://github.com/sst/opencode) 换了个存法，图片以 data URL 塞进 SQLite（`~/.local/share/opencode/opencode.db`，读它需要 Node 22.5+ 的 node:sqlite）。`recover-paste` 会先搞清楚自己正跑在哪家宿主里（沿进程祖先链往上找，再核对 `CLAUDECODE`、`PI_CODING_AGENT`、`CODEX_THREAD_ID` 这些环境变量指纹），然后只读那一家的存储，别家的陈年会话再也没机会冒充。在 Claude Code 里还会直接用注入的会话 ID 精确定位，在 Codex 里则干脆拒绝执行并把你指回 path tag。实在识别不出来才退回按最新图片时间戳在三家赛跑。四家宿主全部活体验证过：Claude Code 靠注入的会话 ID 精确捞回粘贴，OpenCode 上 DeepSeek 全程自动触发 skill 跑完整条链路，Pi 只认自家存储不受别家污染，Codex 被拒之门外并指回 path tag。一句老实话：会话记录格式是这些工具的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
+
+OpenCode 接 DeepSeek 只要两步：`opencode auth login` 选 DeepSeek 贴上 key（落在 `~/.local/share/opencode/auth.json`），再把 `~/.config/opencode/opencode.jsonc` 的默认模型设成 `deepseek/deepseek-v4-flash`。Pi 的 key 放 `~/.pi/agent/auth.json`。
 
 ## 为什么外挂，而不是换多模态模型？
 
