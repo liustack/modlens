@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.6.0 - 2026-08-03
+
+- `recover-paste` now supports OpenCode: pasted/attached images are read from its SQLite store (`~/.local/share/opencode/opencode.db`) via node:sqlite (Node 22.5+, lazy-loaded so older Nodes keep the JSONL harnesses). Recovery internals refactored into per-harness adapters (Claude Code, Pi, OpenCode) sharing one newest-image picker. Verified against a real opencode + deepseek session.
+
 ## 2.5.0 - 2026-08-03
 
 - `recover-paste` now supports Pi (Armin Ronacher's coding agent) alongside Claude Code: both store pasted images as base64 in per-session JSONL files, and recovery auto-detects which harness owns the newest pasted image. Verified live against a real pi + deepseek session. Result JSON gains a `harness` field.

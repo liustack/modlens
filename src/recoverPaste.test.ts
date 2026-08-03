@@ -162,7 +162,7 @@ describe('transcriptForSession', () => {
             expect(result.transcript.endsWith('aaaa-bbbb.jsonl')).toBe(true);
             expect(fs.readFileSync(result.images[0].path).toString()).toBe('exact-image');
             expect(() => recoverPastedImages({ cwd, session: 'missing-id' })).toThrow(
-                'No transcript for session missing-id',
+                'No session missing-id with pasted images',
             );
         } finally {
             process.env.HOME = realHome;
@@ -222,6 +222,78 @@ describe('pi harness support', () => {
             const result = recoverPastedImages({ cwd, outDir: path.join(home, 'out') });
             expect(result.harness).toBe('pi');
             expect(fs.readFileSync(result.images[0].path).toString()).toBe('pi-newer');
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('opencode harness support', async () => {
+    const { recoverPastedImages: recover } = await import('./recoverPaste.ts');
+    const { createRequire } = await import('module');
+    const nodeRequire = createRequire(import.meta.url);
+    const { DatabaseSync } = nodeRequire('node:sqlite');
+
+    function makeDb(home: string, directory: string, dataUrlPng: string, timeMs: number) {
+        const dir = path.join(home, '.local', 'share', 'opencode');
+        fs.mkdirSync(dir, { recursive: true });
+        const db = new DatabaseSync(path.join(dir, 'opencode.db'));
+        db.exec(`
+            CREATE TABLE session (id TEXT PRIMARY KEY, slug TEXT, directory TEXT);
+            CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+            CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT);
+        `);
+        db.prepare("INSERT INTO session VALUES ('ses_1', 'my-session', ?)").run(directory);
+        db.prepare(
+            "INSERT INTO message VALUES ('msg_1', 'ses_1', ?, '{\"role\":\"user\"}')",
+        ).run(timeMs);
+        db.prepare("INSERT INTO part VALUES ('prt_1', 'msg_1', 'ses_1', ?, ?)").run(
+            timeMs,
+            JSON.stringify({ type: 'file', mime: 'image/png', url: dataUrlPng }),
+        );
+        db.close();
+    }
+
+    it('recovers file parts from the sqlite store by directory and by session', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc-'));
+        const cwd = '/tmp/proj';
+        const dataUrl = `data:image/png;base64,${Buffer.from('oc-image').toString('base64')}`;
+        makeDb(home, path.resolve(cwd), dataUrl, Date.parse('2026-08-03T06:00:00.000Z'));
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        try {
+            const result = recover({ cwd, outDir: path.join(home, 'out') });
+            expect(result.harness).toBe('opencode');
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('oc-image');
+
+            const bySlug = recover({ cwd, session: 'my-session', outDir: path.join(home, 'out') });
+            expect(bySlug.harness).toBe('opencode');
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('outranks older jsonl images when its part is newest', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc2-'));
+        const cwd = '/tmp/proj';
+        const claudeDir = path.join(home, '.claude', 'projects', '-tmp-proj');
+        fs.mkdirSync(claudeDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(claudeDir, 'c.jsonl'),
+            imageLine('claude-older', '2026-08-03T01:00:00.000Z'),
+        );
+        const dataUrl = `data:image/png;base64,${Buffer.from('oc-newer').toString('base64')}`;
+        makeDb(home, path.resolve(cwd), dataUrl, Date.parse('2026-08-03T09:00:00.000Z'));
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        try {
+            const result = recover({ cwd, outDir: path.join(home, 'out') });
+            expect(result.harness).toBe('opencode');
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('oc-newer');
         } finally {
             process.env.HOME = realHome;
             fs.rmSync(home, { recursive: true, force: true });
