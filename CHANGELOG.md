@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.0 - 2026-08-03
+
+- `recover-paste` now supports Pi (Armin Ronacher's coding agent) alongside Claude Code: both store pasted images as base64 in per-session JSONL files, and recovery auto-detects which harness owns the newest pasted image. Verified live against a real pi + deepseek session. Result JSON gains a `harness` field.
+
 ## 2.4.3 - 2026-08-03
 
 - Docs: the Claude Code paste-recovery loop is now marked as verified end to end in a real DeepSeek-gateway session (placeholder spotted, file recovered by session id, image answered in full).

@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, expect, it } from 'vitest';
-import { extractUserImages, projectSlug, recoverPastedImages } from './recoverPaste.ts';
+import {
+    claudeProjectSlug,
+    extractUserImages,
+    piSessionSlug,
+    recoverPastedImages,
+} from './recoverPaste.ts';
 
 function imageLine(data: string, timestamp: string, mediaType = 'image/png'): string {
     return JSON.stringify({
@@ -23,14 +28,33 @@ function imageLine(data: string, timestamp: string, mediaType = 'image/png'): st
     });
 }
 
-describe('projectSlug', () => {
-    it('derives claude project slugs from cwd (slashes and dots become dashes)', () => {
-        expect(projectSlug('/Users/leon/projects/liustack-web')).toBe(
+describe('slug encoding', () => {
+    it('derives claude project slugs (slashes and dots become dashes)', () => {
+        expect(claudeProjectSlug('/Users/leon/projects/liustack-web')).toBe(
             '-Users-leon-projects-liustack-web',
         );
-        expect(projectSlug('/Users/leon/.claude')).toBe('-Users-leon--claude');
+        expect(claudeProjectSlug('/Users/leon/.claude')).toBe('-Users-leon--claude');
+    });
+
+    it('derives pi session slugs (leading slash stripped, wrapped in double dashes)', () => {
+        expect(piSessionSlug('/tmp/proj')).toBe('--tmp-proj--');
+        expect(piSessionSlug('/Users/leon/my-app')).toBe('--Users-leon-my-app--');
     });
 });
+
+function piImageLine(data: string, timestamp: string, mimeType = 'image/png'): string {
+    return JSON.stringify({
+        type: 'message',
+        id: 'x',
+        parentId: null,
+        timestamp,
+        message: {
+            role: 'user',
+            content: [{ type: 'image', data: Buffer.from(data).toString('base64'), mimeType }],
+            timestamp: Date.parse(timestamp),
+        },
+    });
+}
 
 describe('extractUserImages + recoverPastedImages', () => {
     it('extracts user image blocks in order, skipping assistant images and junk lines', () => {
@@ -140,6 +164,64 @@ describe('transcriptForSession', () => {
             expect(() => recoverPastedImages({ cwd, session: 'missing-id' })).toThrow(
                 'No transcript for session missing-id',
             );
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('pi harness support', () => {
+    it('recovers pi-format images and reports the harness', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-pi-'));
+        const cwd = '/tmp/proj';
+        const dir = path.join(home, '.pi', 'agent', 'sessions', '--tmp-proj--');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+            path.join(dir, '2026-08-03T14-18-04-595Z_uuid-1.jsonl'),
+            piImageLine('pi-image', '2026-08-03T05:00:00.000Z'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        try {
+            const result = recoverPastedImages({ cwd, outDir: path.join(home, 'out') });
+            expect(result.harness).toBe('pi');
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('pi-image');
+            const bySession = recoverPastedImages({
+                cwd,
+                session: 'uuid-1',
+                outDir: path.join(home, 'out'),
+            });
+            expect(bySession.transcript.endsWith('_uuid-1.jsonl')).toBe(true);
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('picks the globally newest image across claude and pi sessions', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-both-'));
+        const cwd = '/tmp/proj';
+        const claudeDir = path.join(home, '.claude', 'projects', '-tmp-proj');
+        const piDir = path.join(home, '.pi', 'agent', 'sessions', '--tmp-proj--');
+        fs.mkdirSync(claudeDir, { recursive: true });
+        fs.mkdirSync(piDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(claudeDir, 'c.jsonl'),
+            imageLine('claude-older', '2026-08-03T01:00:00.000Z'),
+        );
+        fs.writeFileSync(
+            path.join(piDir, '2026-08-03T14-00-00-000Z_p.jsonl'),
+            piImageLine('pi-newer', '2026-08-03T02:00:00.000Z'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        try {
+            const result = recoverPastedImages({ cwd, outDir: path.join(home, 'out') });
+            expect(result.harness).toBe('pi');
+            expect(fs.readFileSync(result.images[0].path).toString()).toBe('pi-newer');
         } finally {
             process.env.HOME = realHome;
             fs.rmSync(home, { recursive: true, force: true });
