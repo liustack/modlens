@@ -120,7 +120,13 @@ config
         try {
             initConfigFile(CONFIG_PATH, Boolean(options.force));
             process.stdout.write(
-                `Created ${CONFIG_PATH}\nFill in the apiKey fields you need, or use: modlens config set <provider>.apiKey <key>\n`,
+                [
+                    `Created ${CONFIG_PATH}`,
+                    'Everything is optional. Two things you can set:',
+                    '  modlens config set provider <name>                      which provider analyzes images',
+                    '  modlens config set <provider>.<apiKey|baseUrl|model> <value>   provider credentials',
+                    '',
+                ].join('\n'),
             );
         } catch (error) {
             process.stderr.write(

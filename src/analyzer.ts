@@ -174,6 +174,15 @@ export function runCommand(
         const timer = setTimeout(() => {
             timedOut = true;
             child.kill('SIGTERM');
+            // A child that ignores SIGTERM used to keep the caller waiting for
+            // as long as it liked, so report the timeout now and make sure it
+            // dies.
+            settle(null);
+            setTimeout(() => {
+                if (!child.killed) {
+                    child.kill('SIGKILL');
+                }
+            }, SIGKILL_GRACE_MS).unref();
         }, timeoutMs);
 
         // 'close' waits for every stdio pipe to close, but agy leaves a
@@ -188,6 +197,9 @@ export function runCommand(
             settled = true;
             clearTimeout(timer);
             clearTimeout(drainTimer);
+            // Flush the decoders: trailing bytes of a split character were dropped.
+            stdout += outDecoder.decode();
+            stderr += errDecoder.decode();
             child.stdout?.destroy();
             child.stderr?.destroy();
             child.unref();

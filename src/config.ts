@@ -118,15 +118,16 @@ export function setConfigValue(dottedKey: string, value: string, configPath = CO
     }
 }
 
+/**
+ * The starter file holds nothing but the shape. Pre-filling every provider and
+ * every default looked helpful and was not: it buried the one real decision in
+ * placeholders, and writing today's defaults into the file freezes them, so a
+ * later change to a default model would be silently overridden by this copy.
+ */
 export const CONFIG_TEMPLATE: ModlensConfig = {
-    provider: 'antigravity-cli',
-    providers: {
-        'antigravity-cli': { model: 'gemini-3.6-flash-low' },
-        'gemini-api': { apiKey: '', model: 'gemini-3.6-flash' },
-        openai: { baseUrl: '', apiKey: '', model: '' },
-        anthropic: { apiKey: '', model: 'claude-haiku-4-5-20251001' },
-        'claude-cli': { model: 'haiku' },
-    },
+    // Empty means the built-in default provider.
+    provider: '',
+    providers: {},
 };
 
 /** Write a starter config. Refuses to overwrite unless force is set. */

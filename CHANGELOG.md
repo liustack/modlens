@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.6 - 2026-08-05
+
+- `config init` now writes only the shape (`{"provider": "", "providers": {}}`) instead of all five providers with their fields pre-filled. Baked-in defaults in a config file silently outrank later changes to those defaults, and the placeholders hid the one decision that matters. The command prints what can be set instead.
+
 ## 2.7.5 - 2026-08-05
 
 A verification pass on the 2.7.4 fixes (same external reviewer) found four that did not hold and three bugs the fixes themselves introduced. All seven are addressed here.
