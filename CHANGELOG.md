@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.8 - 2026-08-06
+
+- Releases are now one command: `pnpm release <version|patch|minor|major>` refuses a dirty tree, a non-main branch, a duplicate tag, or a version with no CHANGELOG entry, then runs typecheck, tests, and build before anything irreversible happens, and finishes with tag, push, npm publish, and a GitHub release. Publishing by hand is how a version once reached npm with no changelog and no tag behind it.
+- Every previously published version now has a git tag, reconstructed from the commit that carried it.
+
 ## 2.7.7 - 2026-08-05
 
 - README: leads with a scannable feature block (paste support, evidence rather than a description, honest uncertainty, no model swap, zero-key start, four harnesses) and states requirements. Adds a comparison against swapping in a multimodal model and against vision MCP servers, our own weaknesses included.

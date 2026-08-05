@@ -11,6 +11,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm build",
     "docs:list": "node scripts/docs-list.js"
   },
