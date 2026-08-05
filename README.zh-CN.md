@@ -138,8 +138,11 @@ modlens -i <图片路径或 URL> [选项]
 modlens recover-paste                 # 捞最新一张，路径以 JSON 打印
 modlens recover-paste --count 3       # 捞最近三张
 modlens recover-paste --session <id>  # 精确会话（skill 会传 ${CLAUDE_SESSION_ID}）
+modlens recover-paste --harness pi    # 强制按某家宿主的格式解析
 # --transcript <path> 优先级最高，--cwd <dir> 指定项目目录
 ```
+
+恢复出来的图片写成 0600、放进 0700 目录，共享机器上别人读不到。定位会话时除了目录，还会核对会话记录里写着的真实工作目录，因为目录 slug 会碰撞（`/tmp/a.b` 和 `/tmp/a-b` 算出同一个），不核对就可能把隔壁项目的图交给你。
 
 ## Provider 与配置
 

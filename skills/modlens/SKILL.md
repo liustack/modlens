@@ -73,6 +73,7 @@ Harnesses rarely hand you a clean path. First identify which harness you are in,
 - The output is JSON with real file paths, ordered oldest to newest, so the LAST path is the user's most recent paste. Analyze that one first. Entries carry `filename` (the original attachment name) when the harness stored one; if the user's message or an error mentions a filename, match on it.
 - Run every command yourself: `recover-paste`, then `modlens -i <path>` on the recovered file, then answer from the JSON. Never ask the user to run modlens or to relay paths.
 - The output's `detected` field names the harness scope that was applied. If it is absent, detection failed and every store was scanned by newest-image timestamp: before describing anything, check that `harness` and `filename` match what you expect, force the scope with `--harness <claude-code|pi|opencode>` if they do not, and when in doubt ask the user for the file instead of describing the wrong image.
+- Recovery is scoped to this project: the harness's own record of its working directory is checked, not just the directory name, so images from a neighbouring project are never handed over. Recovered files are private to the user (0600).
 - If recovery fails (session storage is each harness's internals and may change), ask the user to drag the image file into the terminal or type its path.
 
 **Any other harness, or nothing matches** (no path tag and `recover-paste` reports no transcripts): do not guess. Ask the user for the image file path, or suggest dragging the file into the terminal.

@@ -138,8 +138,11 @@ Two more subcommands: `modlens config <init|set|show>` manages providers and key
 modlens recover-paste                 # newest pasted image, path printed as JSON
 modlens recover-paste --count 3       # the three newest
 modlens recover-paste --session <id>  # exact session (skills pass ${CLAUDE_SESSION_ID})
+modlens recover-paste --harness pi    # force one harness's format
 # --transcript <path> overrides everything; --cwd <dir> sets the project directory
 ```
+
+Recovered images are written 0600 into a 0700 directory, so nobody else on a shared machine can read them. Locating a session checks the cwd recorded inside the transcript as well as the directory, because directory slugs collide (`/tmp/a.b` and `/tmp/a-b` produce the same one) and without that check you can be handed a neighbouring project's images.
 
 ## Providers and config
 
