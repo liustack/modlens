@@ -9,6 +9,7 @@ import {
 } from './config.ts';
 import {
     resolveProvider,
+    type ProviderFailureContext,
     type ProviderInvocation,
     type ProviderParsedOutput,
 } from './providers/index.ts';
@@ -86,6 +87,7 @@ export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResu
             provider.name,
             invocation,
             timeoutMs + KILL_GRACE_MS,
+            provider.describeFailure,
         );
         parsed = provider.parseOutput(commandResult.stdout);
     } else {
@@ -144,6 +146,7 @@ export function runCommand(
     providerName: string,
     invocation: ProviderInvocation,
     timeoutMs: number,
+    describeFailure?: (context: ProviderFailureContext) => string | null,
 ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
         const child = spawn(invocation.command, invocation.args, {
@@ -183,9 +186,13 @@ export function runCommand(
                 return;
             }
             if (code !== 0) {
+                // The provider knows what its own error output means; a bare
+                // exit code tells the user nothing actionable (issue #3).
+                const explained = describeFailure?.({ stdout, stderr, code }) ?? null;
                 reject(
                     new Error(
-                        `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
+                        explained ??
+                            `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
                     ),
                 );
                 return;

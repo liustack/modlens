@@ -1,7 +1,10 @@
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { buildVisionPrompt } from '../prompt.ts';
 import { visionResultSchemaJson } from '../schema.ts';
 import type {
+    ProviderFailureContext,
     BuildProviderInvocationOptions,
     ProviderInvocation,
     ProviderParsedOutput,
@@ -112,9 +115,96 @@ function tryParseJson(text: string): unknown | null {
     }
 }
 
+const SWITCH_HINT = `Or switch to a provider with its own quota and no interactive login:
+  modlens config set gemini-api.apiKey <key>   # free key, no card: https://aistudio.google.com
+  modlens config set provider gemini-api`;
+
+/**
+ * agy exits 1 for auth and quota problems alike, and its own envelope says
+ * only "Agent execution terminated due to error." The distinguishing evidence
+ * lives in agy's log file, so read it before guessing (issue #3).
+ */
+export function describeAntigravityFailure(context: ProviderFailureContext): string | null {
+    let envelope: AgyPrintEnvelope | null = null;
+    try {
+        envelope = parseEnvelope(context.stdout);
+    } catch {
+        envelope = null;
+    }
+    // No agy envelope means agy never ran (missing binary, wrapper, crash), so
+    // this is not an agy-level error and its logs say nothing about it.
+    if (!envelope) {
+        return null;
+    }
+    const agyError = typeof envelope?.error === 'string' ? envelope.error.trim() : '';
+    const evidence = `${agyError}\n${context.stderr}\n${readRecentAgyLog()}`.toLowerCase();
+
+    if (evidence.includes('quota')) {
+        return [
+            agyError || 'Antigravity CLI reported a quota error.',
+            "agy's free tier is one weekly bucket shared by the desktop app, the CLI, and the SDK, and subagents drain it in parallel. Wait for the reset shown above, or use a different provider.",
+            SWITCH_HINT,
+        ].join('\n\n');
+    }
+
+    if (
+        evidence.includes('not logged into antigravity') ||
+        evidence.includes('getting token source') ||
+        evidence.includes('keyring') ||
+        evidence.includes('failed to read token store')
+    ) {
+        return [
+            'Antigravity CLI cannot read its stored login token.',
+            "On Linux this usually means the OS keyring is locked, which is normal for headless sessions (agents, cron, systemd, SSH without a desktop login). agy then reports it as being signed out and tries a browser sign-in that cannot complete without a display. Unlock the keyring, or run modlens from a desktop session, or sign in again with `agy`.",
+            SWITCH_HINT,
+        ].join('\n\n');
+    }
+
+    const totalTokens = (envelope?.usage as { total_tokens?: number } | undefined)?.total_tokens;
+    if (agyError || totalTokens === 0) {
+        return [
+            agyError || 'Antigravity CLI exited before doing any work (no tokens consumed).',
+            `Usually auth or quota. Check \`agy\` interactively, and look at the newest log in ${agyLogDir()} for the real reason.`,
+            SWITCH_HINT,
+        ].join('\n\n');
+    }
+
+    return null;
+}
+
+function agyLogDir(): string {
+    return path.join(os.homedir(), '.gemini', 'antigravity-cli', 'log');
+}
+
+// Older logs belong to earlier runs and would misdiagnose this one.
+const LOG_FRESHNESS_MS = 2 * 60 * 1000;
+
+/** Tail of agy's newest log file when it belongs to this run, else empty. */
+function readRecentAgyLog(): string {
+    try {
+        const dir = agyLogDir();
+        const newest = fs
+            .readdirSync(dir)
+            .filter((name) => name.endsWith('.log'))
+            .map((name) => {
+                const full = path.join(dir, name);
+                return { full, mtime: fs.statSync(full).mtimeMs };
+            })
+            .sort((a, b) => b.mtime - a.mtime)[0];
+        if (!newest || Date.now() - newest.mtime > LOG_FRESHNESS_MS) {
+            return '';
+        }
+        // Only the tail matters, and these files can get large.
+        return fs.readFileSync(newest.full, 'utf-8').slice(-8000);
+    } catch {
+        return '';
+    }
+}
+
 export const antigravityCliProvider: VisionProvider = {
     name: 'antigravity-cli',
     defaultModel: DEFAULT_MODEL,
     buildInvocation: buildAntigravityInvocation,
     parseOutput: parseAntigravityOutput,
+    describeFailure: describeAntigravityFailure,
 };

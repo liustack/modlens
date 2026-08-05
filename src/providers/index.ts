@@ -31,6 +31,13 @@ export interface ProviderParsedOutput {
     };
 }
 
+/** Everything a provider needs to explain a non-zero exit. */
+export interface ProviderFailureContext {
+    stdout: string;
+    stderr: string;
+    code: number | null;
+}
+
 export interface VisionProvider {
     name: string;
     defaultModel: string;
@@ -39,6 +46,8 @@ export interface VisionProvider {
     buildInvocation?: (options: BuildProviderInvocationOptions) => ProviderInvocation;
     parseOutput?: (stdout: string) => ProviderParsedOutput;
     execute?: (options: BuildProviderInvocationOptions) => Promise<ProviderParsedOutput>;
+    /** Turn a non-zero exit into an actionable message, or null to use the default. */
+    describeFailure?: (context: ProviderFailureContext) => string | null;
 }
 
 const PROVIDERS: Record<string, VisionProvider> = {

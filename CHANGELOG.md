@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.3 - 2026-08-05
+
+- Fix: a failing `antigravity-cli` run now explains itself instead of reporting a bare exit code ([#3](https://github.com/liustack/modlens/issues/3), thanks @mtongle). Providers gained a `describeFailure` hook, and the agy provider uses it to surface agy's own error text and classify the two failures users actually hit: a locked OS keyring in headless sessions (the report's case, where agy claims to be signed out) and an exhausted weekly quota. Both messages end with the exact commands to switch to a keyless, quota-independent provider. Diagnosis only reads agy's log when this run produced an agy error envelope and the log is fresh, so stale logs cannot misdiagnose an unrelated failure.
+- Docs: README leads with paste support, recommends the free AI Studio key over the slower agy default, and documents that the skill configures modlens for you on request.
+
 ## 2.7.2 - 2026-08-05
 
 - Fix: runs with the `antigravity-cli` provider hung until the timeout killed them ([#1](https://github.com/liustack/modlens/issues/1), thanks @hawkmor for the diagnosis). agy exits cleanly but leaves a language server holding the inherited stdout pipe, so the child's `close` event never fires. The provider run now settles on `exit` plus a short drain window, and releases the pipes afterwards so a lingering descendant cannot keep the CLI process alive either.

@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     buildAntigravityInvocation,
     DEFAULT_MODEL,
+    describeAntigravityFailure,
     parseAntigravityOutput,
 } from './antigravity.ts';
 import { VISION_RESULT_SCHEMA } from '../schema.ts';
@@ -96,5 +100,100 @@ describe('parseAntigravityOutput', () => {
         expect(() => parseAntigravityOutput('not json')).toThrow(
             'Failed to parse Antigravity CLI JSON output.',
         );
+    });
+});
+
+describe('describeAntigravityFailure', () => {
+    const realHome = process.env.HOME;
+    let fakeHome: string;
+
+    beforeEach(() => {
+        // Isolate from this machine's real agy logs.
+        fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-agy-'));
+        process.env.HOME = fakeHome;
+    });
+
+    afterEach(() => {
+        process.env.HOME = realHome;
+        fs.rmSync(fakeHome, { recursive: true, force: true });
+    });
+
+    function writeAgyLog(contents: string): void {
+        const dir = path.join(fakeHome, '.gemini', 'antigravity-cli', 'log');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'cli-20260805.log'), contents);
+    }
+
+    const errorEnvelope = (error: string, totalTokens = 0) =>
+        JSON.stringify({
+            status: 'ERROR',
+            response: '',
+            error,
+            usage: { total_tokens: totalTokens },
+        });
+
+    it('explains a locked keyring when agy logs an auth failure', () => {
+        // agy's own envelope is generic here: the real cause is only in its log.
+        writeAgyLog(
+            'Failed to poll ListExperiments: error getting token source: You are not logged into Antigravity.',
+        );
+        const message = describeAntigravityFailure({
+            stdout: errorEnvelope('Agent execution terminated due to error.'),
+            stderr: '',
+            code: 1,
+        });
+        expect(message).toContain('cannot read its stored login token');
+        expect(message).toContain('keyring is locked');
+        expect(message).toContain('modlens config set provider gemini-api');
+    });
+
+    it('explains an exhausted quota and keeps agy own wording', () => {
+        const message = describeAntigravityFailure({
+            stdout: errorEnvelope('Individual quota reached. Resets in 94h19m9s.'),
+            stderr: '',
+            code: 1,
+        });
+        expect(message).toContain('Resets in 94h19m9s');
+        expect(message).toContain('weekly bucket');
+        expect(message).toContain('modlens config set provider gemini-api');
+    });
+
+    it('falls back to a generic did-no-work message with the log path', () => {
+        const message = describeAntigravityFailure({
+            stdout: errorEnvelope(''),
+            stderr: '',
+            code: 1,
+        });
+        expect(message).toContain('no tokens consumed');
+        expect(message).toContain('antigravity-cli/log');
+    });
+
+    it('stays out of the way when agy never ran at all', () => {
+        // No envelope means the failure came from somewhere else, and agy's
+        // logs would only misdiagnose it.
+        expect(
+            describeAntigravityFailure({ stdout: 'not json at all', stderr: '', code: 127 }),
+        ).toBeNull();
+    });
+
+    it('ignores stale logs from earlier runs', () => {
+        writeAgyLog('error getting token source: You are not logged into Antigravity.');
+        const logFile = path.join(
+            fakeHome,
+            '.gemini',
+            'antigravity-cli',
+            'log',
+            'cli-20260805.log',
+        );
+        const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        fs.utimesSync(logFile, hourAgo, hourAgo);
+
+        const message = describeAntigravityFailure({
+            stdout: errorEnvelope('Agent execution terminated due to error.'),
+            stderr: '',
+            code: 1,
+        });
+        expect(message).not.toContain('keyring is locked');
+        expect(message).toContain('Agent execution terminated');
     });
 });
