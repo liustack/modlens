@@ -50,12 +50,28 @@ export function defaultProviderName(config: ModlensConfig): string {
 }
 
 /** Resolve settings for one provider with env vars overriding the config file. */
+/** Aliases the CLI accepts, mapped to the canonical provider name. */
+const PROVIDER_ALIASES: Record<string, string> = {
+    antigravity: 'antigravity-cli',
+    agy: 'antigravity-cli',
+    gemini: 'gemini-api',
+    claude: 'claude-cli',
+};
+
 export function resolveProviderSettings(
     providerName: string,
     config: ModlensConfig,
     env: NodeJS.ProcessEnv = process.env,
 ): ProviderSettings {
-    const fromFile = config.providers?.[providerName] ?? {};
+    // Settings saved under an alias (config set gemini.apiKey) were invisible
+    // once the name resolved to its canonical form.
+    const aliasNames = Object.entries(PROVIDER_ALIASES)
+        .filter(([, canonical]) => canonical === providerName)
+        .map(([alias]) => alias);
+    const fromFile = {
+        ...Object.assign({}, ...aliasNames.map((alias) => config.providers?.[alias] ?? {})),
+        ...(config.providers?.[providerName] ?? {}),
+    };
     const bindings = ENV_BINDINGS[providerName] ?? {};
 
     const settings: ProviderSettings = { ...fromFile };

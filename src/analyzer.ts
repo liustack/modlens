@@ -54,6 +54,8 @@ const KILL_GRACE_MS = 30_000;
 // After the provider exits, how long to keep draining stdout before giving up
 // on the pipe closing. Reset whenever more output arrives.
 const DRAIN_GRACE_MS = 500;
+// How long a killed child gets before SIGKILL.
+const SIGKILL_GRACE_MS = 2_000;
 
 export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResult> {
     const resolvedInput = resolveInput(options.input);
@@ -83,10 +85,14 @@ export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResu
         parsed = await provider.execute(providerOptions);
     } else if (provider.buildInvocation && provider.parseOutput) {
         const invocation = provider.buildInvocation(providerOptions);
+        // The grace exists for engines with their own internal deadline (agy
+        // gets --print-timeout). Engines without one must honour the caller's
+        // number as given.
+        const backstop = provider.hasInternalTimeout ? timeoutMs + KILL_GRACE_MS : timeoutMs;
         const commandResult = await runCommand(
             provider.name,
             invocation,
-            timeoutMs + KILL_GRACE_MS,
+            backstop,
             provider.describeFailure,
         );
         parsed = provider.parseOutput(commandResult.stdout);
@@ -148,12 +154,17 @@ export function runCommand(
     timeoutMs: number,
     describeFailure?: (context: ProviderFailureContext) => string | null,
 ): Promise<CommandResult> {
+    const runStartedAt = Date.now();
     return new Promise((resolve, reject) => {
         const child = spawn(invocation.command, invocation.args, {
             cwd: invocation.cwd,
             stdio: ['ignore', 'pipe', 'pipe'],
         });
 
+        // Decoders keep state across chunks: a multi-byte character split down the
+        // middle used to come out as replacement characters.
+        const outDecoder = new TextDecoder('utf-8');
+        const errDecoder = new TextDecoder('utf-8');
         let stdout = '';
         let stderr = '';
         let timedOut = false;
@@ -188,7 +199,7 @@ export function runCommand(
             if (code !== 0) {
                 // The provider knows what its own error output means; a bare
                 // exit code tells the user nothing actionable (issue #3).
-                const explained = describeFailure?.({ stdout, stderr, code }) ?? null;
+                const explained = describeFailure?.({ stdout, stderr, code, startedAt: runStartedAt }) ?? null;
                 reject(
                     new Error(
                         explained ??
@@ -211,12 +222,12 @@ export function runCommand(
         };
 
         child.stdout.on('data', (chunk: Buffer) => {
-            stdout += chunk.toString();
+            stdout += outDecoder.decode(chunk, { stream: true });
             restartDrain();
         });
 
         child.stderr.on('data', (chunk: Buffer) => {
-            stderr += chunk.toString();
+            stderr += errDecoder.decode(chunk, { stream: true });
             restartDrain();
         });
 
@@ -228,9 +239,14 @@ export function runCommand(
             clearTimeout(timer);
             clearTimeout(drainTimer);
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                // spawn reports ENOENT for a missing cwd too, and naming the
+                // wrong cause sent people installing software they already had.
+                const missingCwd = !fs.existsSync(invocation.cwd);
                 reject(
                     new Error(
-                        `Provider CLI not found: ${invocation.command}. Install Antigravity CLI and sign in first.`,
+                        missingCwd
+                            ? `Working directory does not exist: ${invocation.cwd}`
+                            : `Provider CLI not found: ${invocation.command}. Install it and sign in first.`,
                     ),
                 );
                 return;

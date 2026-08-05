@@ -82,10 +82,20 @@ Respond with ONE JSON object only, no markdown fences, no commentary. Fill this 
     }
     // No portable server-side schema enforcement on this route, so verify the
     // shape instead of silently returning something that only looks right.
-    const shaped = result as { summary?: unknown; ocr?: unknown };
-    if (typeof shaped.summary !== 'string' || typeof shaped.ocr !== 'object') {
+    // A token check let {"summary":"x","ocr":null} through, along with results
+    // missing every other required field.
+    const shaped = result as Record<string, unknown>;
+    const missing = ['summary', 'ocr', 'layout', 'semantics', 'visual', 'uncertainty'].filter(
+        (field) => shaped[field] === undefined || shaped[field] === null,
+    );
+    if (
+        missing.length > 0 ||
+        typeof shaped.summary !== 'string' ||
+        typeof shaped.ocr !== 'object' ||
+        !Array.isArray(shaped.uncertainty)
+    ) {
         throw new Error(
-            `OpenAI-compatible API returned JSON that does not match the vision schema (missing summary/ocr). Retry, or switch to gemini-api / anthropic for enforced schemas. Got: ${truncate(text)}`,
+            `OpenAI-compatible API returned JSON that does not match the vision schema${missing.length > 0 ? ` (missing: ${missing.join(', ')})` : ''}. Retry, or switch to gemini-api / anthropic for enforced schemas. Got: ${truncate(text)}`,
         );
     }
 

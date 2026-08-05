@@ -36,6 +36,8 @@ export interface ProviderFailureContext {
     stdout: string;
     stderr: string;
     code: number | null;
+    /** When this run started, so log evidence can be scoped to it. */
+    startedAt?: number;
 }
 
 export interface VisionProvider {
@@ -48,6 +50,8 @@ export interface VisionProvider {
     execute?: (options: BuildProviderInvocationOptions) => Promise<ProviderParsedOutput>;
     /** Turn a non-zero exit into an actionable message, or null to use the default. */
     describeFailure?: (context: ProviderFailureContext) => string | null;
+    /** True when the CLI enforces its own deadline, so we add a kill backstop. */
+    hasInternalTimeout?: boolean;
 }
 
 const PROVIDERS: Record<string, VisionProvider> = {

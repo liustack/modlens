@@ -49,6 +49,12 @@ export interface RecoverOptions {
     harness?: string;
 }
 
+/** Last-resort extension from the media type itself, e.g. image/heic -> heic. */
+function extensionFromMediaType(mediaType: string): string {
+    const subtype = mediaType.split('/')[1]?.split('+')[0]?.replace(/[^a-z0-9]/gi, '');
+    return subtype ? subtype.toLowerCase() : 'bin';
+}
+
 const EXT_BY_MIME: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -82,6 +88,38 @@ interface HarnessAdapter {
 }
 
 // ---------- shared JSONL helpers ----------
+
+/**
+ * Slugs are lossy: /tmp/project.alpha and /tmp/project-alpha collapse to the
+ * same Claude slug, and Pi has the same problem with separators. Both harnesses
+ * record the real cwd inside the transcript, so check it before trusting a
+ * directory match.
+ */
+function transcriptBelongsTo(filePath: string, cwd: string): boolean {
+    const wanted = path.resolve(cwd);
+    let raw: string;
+    try {
+        raw = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+        return false;
+    }
+    for (const line of raw.split('\n')) {
+        if (!line.includes('"cwd"')) {
+            continue;
+        }
+        try {
+            const recorded = (JSON.parse(line) as { cwd?: unknown }).cwd;
+            if (typeof recorded === 'string') {
+                const resolved = path.resolve(recorded);
+                return resolved === wanted || resolved.startsWith(`${wanted}${path.sep}`);
+            }
+        } catch {
+            // keep looking
+        }
+    }
+    // No cwd recorded at all: the slug is the only evidence we have.
+    return true;
+}
 
 function forEachJsonLine(filePath: string, visit: (line: unknown) => void): void {
     let raw: string;
@@ -162,6 +200,9 @@ function jsonlAdapter(options: {
         findNewest: (cwd) => {
             let best: { ref: SourceRef; timestamp: number } | null = null;
             for (const file of listJsonl(dirFor(cwd))) {
+                if (!transcriptBelongsTo(file, cwd)) {
+                    continue;
+                }
                 const timestamp = newestJsonlTimestamp(file, extractLine);
                 if (timestamp !== null && (!best || timestamp > best.timestamp)) {
                     best = { ref: jsonlSource(name, file, extractLine), timestamp };
@@ -171,7 +212,7 @@ function jsonlAdapter(options: {
         },
         findSession: (cwd, sessionId) => {
             for (const file of listJsonl(dirFor(cwd))) {
-                if (matchesSession(path.basename(file), sessionId)) {
+                if (matchesSession(path.basename(file), sessionId) && transcriptBelongsTo(file, cwd)) {
                     return jsonlSource(name, file, extractLine);
                 }
             }
@@ -248,6 +289,11 @@ export function opencodeDbPath(): string {
     return path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 }
 
+/** LIKE reads _ and % as wildcards, so a literal path must escape them. */
+export function escapeLikePattern(value: string): string {
+    return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 interface SqliteRow {
     data: string;
     time_created: number;
@@ -276,10 +322,19 @@ function opencodeQuery(dbPath: string, cwd: string, sessionId?: string): SqliteR
         // opencode's bash tool runs at the repo root while session.directory
         // records where the session was launched (possibly a subdirectory), so
         // directories must match by prefix in both directions, not exactly.
+        //
+        // Two traps live here. LIKE treats _ and % as wildcards, so a project
+        // path containing either matched other projects until escaped. And a
+        // session id or slug is not unique across projects, so it narrows the
+        // directory match rather than replacing it.
+        const directoryFilter = `(session.directory = ? OR session.directory LIKE ? || '/%' ESCAPE '\\' OR ? LIKE session.directory || '/%' ESCAPE '\\')`;
+        const escaped = escapeLikePattern(resolved);
         const sessionFilter = sessionId
-            ? `AND (session.id = ? OR session.slug = ?)`
-            : `AND (session.directory = ? OR session.directory LIKE ? || '/%' OR ? LIKE session.directory || '/%')`;
-        const params = sessionId ? [sessionId, sessionId] : [resolved, resolved, resolved];
+            ? `AND ${directoryFilter} AND (session.id = ? OR session.slug = ?)`
+            : `AND ${directoryFilter}`;
+        const params = sessionId
+            ? [resolved, escaped, resolved, sessionId, sessionId]
+            : [resolved, escaped, resolved];
         const rows = db
             .prepare(
                 `SELECT part.data AS data, part.time_created AS time_created, part.session_id AS session_id
@@ -403,10 +458,19 @@ export function harnessFromPsTable(psOutput: string, startPid: number): string |
         if (!proc) {
             return null;
         }
-        // Only the first few tokens (executable, node shim flags, script path):
-        // deeper tokens are free-text arguments and would false-positive.
-        for (const token of proc.command.trim().split(/\s+/).slice(0, 8)) {
-            const mapped = HARNESS_BY_BASENAME[path.basename(token)];
+        // Only the executable itself, plus the script path when it is run
+        // through a node shim. Scanning further matched plain arguments: a
+        // command that merely mentioned "pi" was detected as Pi.
+        const tokens = proc.command.trim().split(/\s+/);
+        const candidates = [tokens[0]];
+        if (/^(node|bun|deno)$/.test(path.basename(tokens[0] ?? ''))) {
+            const script = tokens.slice(1).find((token) => !token.startsWith('-'));
+            if (script) {
+                candidates.push(script);
+            }
+        }
+        for (const token of candidates) {
+            const mapped = token ? HARNESS_BY_BASENAME[path.basename(token)] : undefined;
             if (mapped) {
                 return mapped;
             }
@@ -449,15 +513,18 @@ function detectHarness(): string | null {
 
 const ADAPTERS: HarnessAdapter[] = [claudeAdapter, piAdapter, opencodeAdapter];
 
-function sourceForExplicitPath(filePath: string): SourceRef {
-    if (filePath.endsWith('.db')) {
+function sourceForExplicitPath(filePath: string, cwd: string, harness?: string): SourceRef {
+    // An explicit --harness is the user telling us the format. Honour it: a
+    // copied transcript has no telltale path, and guessing read it as Claude.
+    const declared = harness && harness !== 'none' ? harness : undefined;
+    if (declared === 'opencode' || (!declared && filePath.endsWith('.db'))) {
         return {
             harness: 'opencode',
             location: filePath,
-            extract: () => opencodeImagesFromRows(opencodeQuery(filePath, process.cwd())),
+            extract: () => opencodeImagesFromRows(opencodeQuery(filePath, cwd)),
         };
     }
-    if (filePath.includes(`${path.sep}.pi${path.sep}`)) {
+    if (declared === 'pi' || (!declared && filePath.includes(`${path.sep}.pi${path.sep}`))) {
         return jsonlSource('pi', filePath, piExtractLine);
     }
     return jsonlSource('claude-code', filePath, claudeExtractLine);
@@ -465,12 +532,16 @@ function sourceForExplicitPath(filePath: string): SourceRef {
 
 export function locateSource(cwd: string, adapters: HarnessAdapter[] = ADAPTERS): SourceRef {
     let best: { ref: SourceRef; timestamp: number } | null = null;
+    const blockers: string[] = [];
     for (const adapter of adapters) {
         let candidate: { ref: SourceRef; timestamp: number } | null = null;
         try {
             candidate = adapter.findNewest(cwd);
-        } catch {
-            // an unreadable store should not block the other harnesses
+        } catch (error) {
+            // An unreadable store should not block the other harnesses, but a
+            // setup problem the user can fix (Node too old for node:sqlite)
+            // must not vanish into a bare "no images found".
+            blockers.push(`${adapter.name}: ${error instanceof Error ? error.message : String(error)}`);
         }
         if (candidate && (!best || candidate.timestamp > best.timestamp)) {
             best = candidate;
@@ -478,8 +549,9 @@ export function locateSource(cwd: string, adapters: HarnessAdapter[] = ADAPTERS)
     }
     if (!best) {
         const dirs = adapters.map((a) => a.describe(cwd)).join(' , ');
+        const blocked = blockers.length > 0 ? `\nBlocked: ${blockers.join(' | ')}` : '';
         throw new Error(
-            `No pasted images found in any session storage for this directory (looked in: ${dirs}). The user may not have pasted any, or the storage format changed; ask for a file path instead.`,
+            `No pasted images found in any session storage for this directory (looked in: ${dirs}). The user may not have pasted any, or the storage format changed; ask for a file path instead.${blocked}`,
         );
     }
     return best.ref;
@@ -490,19 +562,21 @@ export function sourceForSession(
     sessionId: string,
     adapters: HarnessAdapter[] = ADAPTERS,
 ): SourceRef {
+    const blockers: string[] = [];
     for (const adapter of adapters) {
         try {
             const ref = adapter.findSession(cwd, sessionId);
             if (ref) {
                 return ref;
             }
-        } catch {
-            // keep looking in the other harnesses
+        } catch (error) {
+            blockers.push(`${adapter.name}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     const dirs = adapters.map((a) => a.describe(cwd)).join(' , ');
+    const blocked = blockers.length > 0 ? `\nBlocked: ${blockers.join(' | ')}` : '';
     throw new Error(
-        `No session ${sessionId} with pasted images under this project (looked in: ${dirs}). Check --cwd, or drop --session to auto-locate by newest pasted image.`,
+        `No session ${sessionId} with pasted images under this project (looked in: ${dirs}). Check --cwd, or drop --session to auto-locate by newest pasted image.${blocked}`,
     );
 }
 
@@ -529,7 +603,7 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
     // to scanning instead of failing when it does not pan out.
     let source: SourceRef | null = null;
     if (options.transcript) {
-        source = sourceForExplicitPath(options.transcript);
+        source = sourceForExplicitPath(options.transcript, cwd, options.harness);
     } else if (options.session) {
         source = sourceForSession(cwd, options.session, adapters);
     } else {
@@ -554,14 +628,23 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
         );
     }
 
-    fs.mkdirSync(outDir, { recursive: true });
+    // Pasted screenshots can hold anything. On a shared /tmp with the usual
+    // umask these landed as 0755/0644, readable by every local user.
+    fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
+    try {
+        fs.chmodSync(outDir, 0o700);
+    } catch {
+        // best effort on platforms without chmod
+    }
     const picked = all.slice(-count);
     const images: RecoveredImage[] = picked.map((image) => {
         const buffer = Buffer.from(image.data, 'base64');
         const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 8);
-        const ext = EXT_BY_MIME[image.mediaType] ?? 'png';
+        // An unmapped image/* used to be relabelled .png, and downstream tools
+        // trust the extension, so they were handed the wrong type.
+        const ext = EXT_BY_MIME[image.mediaType] ?? extensionFromMediaType(image.mediaType);
         const filePath = path.join(outDir, `paste-${hash}.${ext}`);
-        fs.writeFileSync(filePath, buffer);
+        fs.writeFileSync(filePath, buffer, { mode: 0o600 });
         const recovered: RecoveredImage = {
             path: filePath,
             mediaType: image.mediaType,
@@ -582,5 +665,5 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
 
 // Back-compat named export used by tests for JSONL extraction.
 export function extractUserImages(transcriptPath: string): ImageBlockRef[] {
-    return sourceForExplicitPath(transcriptPath).extract();
+    return sourceForExplicitPath(transcriptPath, process.cwd()).extract();
 }

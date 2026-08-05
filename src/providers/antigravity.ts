@@ -125,6 +125,10 @@ const SWITCH_HINT = `Or switch to a provider with its own quota and no interacti
  * lives in agy's log file, so read it before guessing (issue #3).
  */
 export function describeAntigravityFailure(context: ProviderFailureContext): string | null {
+    // Only lines written after this run started can describe this run. A
+    // two-minute window alone let a previous quota failure, or a concurrent
+    // agy call, misdiagnose an unrelated error.
+    const since = context.startedAt ?? Date.now() - LOG_FRESHNESS_MS;
     let envelope: AgyPrintEnvelope | null = null;
     try {
         envelope = parseEnvelope(context.stdout);
@@ -137,7 +141,7 @@ export function describeAntigravityFailure(context: ProviderFailureContext): str
         return null;
     }
     const agyError = typeof envelope?.error === 'string' ? envelope.error.trim() : '';
-    const evidence = `${agyError}\n${context.stderr}\n${readRecentAgyLog()}`.toLowerCase();
+    const evidence = `${agyError}\n${context.stderr}\n${readRecentAgyLog(since)}`.toLowerCase();
 
     if (evidence.includes('quota')) {
         return [
@@ -180,7 +184,7 @@ function agyLogDir(): string {
 const LOG_FRESHNESS_MS = 2 * 60 * 1000;
 
 /** Tail of agy's newest log file when it belongs to this run, else empty. */
-function readRecentAgyLog(): string {
+function readRecentAgyLog(since: number): string {
     try {
         const dir = agyLogDir();
         const newest = fs
@@ -191,7 +195,8 @@ function readRecentAgyLog(): string {
                 return { full, mtime: fs.statSync(full).mtimeMs };
             })
             .sort((a, b) => b.mtime - a.mtime)[0];
-        if (!newest || Date.now() - newest.mtime > LOG_FRESHNESS_MS) {
+        // The file must have been touched during this run, not merely recently.
+        if (!newest || newest.mtime < since) {
             return '';
         }
         // Only the tail matters, and these files can get large.
@@ -207,4 +212,5 @@ export const antigravityCliProvider: VisionProvider = {
     buildInvocation: buildAntigravityInvocation,
     parseOutput: parseAntigravityOutput,
     describeFailure: describeAntigravityFailure,
+    hasInternalTimeout: true,
 };

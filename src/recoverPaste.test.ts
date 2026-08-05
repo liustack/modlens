@@ -4,6 +4,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     claudeProjectSlug,
+    escapeLikePattern,
     extractUserImages,
     harnessFromPsTable,
     piSessionSlug,
@@ -516,5 +517,94 @@ describe('harness detection', () => {
             process.env.HOME = realHome;
             fs.rmSync(home, { recursive: true, force: true });
         }
+    });
+});
+
+describe('cross-project safety', () => {
+    it('escapes SQL wildcards so a path with _ cannot match another project', () => {
+        // LIKE reads _ as "any character", so /tmp/proj_1 used to match projA1.
+        expect(escapeLikePattern('/tmp/proj_1')).toBe('/tmp/proj\\_1');
+        expect(escapeLikePattern('/tmp/100%/x')).toBe('/tmp/100\\%/x');
+        expect(escapeLikePattern('/tmp/plain')).toBe('/tmp/plain');
+    });
+
+    it('rejects a transcript whose recorded cwd belongs to another project', () => {
+        // /tmp/project.alpha and /tmp/project-alpha share one Claude slug.
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-collide-'));
+        const slugDir = path.join(home, '.claude', 'projects', claudeProjectSlug('/tmp/project-alpha'));
+        fs.mkdirSync(slugDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(slugDir, 'other.jsonl'),
+            `${JSON.stringify({ cwd: '/tmp/project.alpha' })}\n${imageLine('other-project', '2026-08-05T09:00:00.000Z')}`,
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        process.env.MODLENS_HARNESS = 'none';
+        try {
+            expect(() =>
+                recoverPastedImages({ cwd: '/tmp/project-alpha', outDir: path.join(home, 'out') }),
+            ).toThrow(/No pasted images/);
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps recovered images private to this user', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-perm-'));
+        const dir = path.join(home, '.claude', 'projects', claudeProjectSlug('/tmp/p'));
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'c.jsonl'), imageLine('secret', '2026-08-05T09:00:00.000Z'));
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        process.env.MODLENS_HARNESS = 'none';
+        try {
+            const outDir = path.join(home, 'out');
+            const result = recoverPastedImages({ cwd: '/tmp/p', outDir });
+            expect(fs.statSync(result.images[0].path).mode & 0o777).toBe(0o600);
+            expect(fs.statSync(outDir).mode & 0o777).toBe(0o700);
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps an unmapped media type instead of relabelling it png', () => {
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-mime-'));
+        const dir = path.join(home, '.claude', 'projects', claudeProjectSlug('/tmp/p'));
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+            path.join(dir, 'c.jsonl'),
+            imageLine('heic-bytes', '2026-08-05T09:00:00.000Z', 'image/heic'),
+        );
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        process.env.MODLENS_HARNESS = 'none';
+        try {
+            const result = recoverPastedImages({ cwd: '/tmp/p', outDir: path.join(home, 'out') });
+            expect(result.images[0].path.endsWith('.heic')).toBe(true);
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('only reads the executable name from process ancestry', () => {
+        // A command that merely mentions "pi" in its arguments is not Pi.
+        const ps = [
+            ' 100 1 /opt/homebrew/bin/fish',
+            ' 200 100 sometool serve --note "check the pi docs" pi',
+            ' 300 200 node /x/dist/main.js recover-paste',
+        ].join('\n');
+        expect(harnessFromPsTable(ps, 300)).toBeNull();
+
+        const real = [
+            ' 100 1 /usr/local/bin/node /Users/x/.npm/bin/pi',
+            ' 300 100 node /x/dist/main.js recover-paste',
+        ].join('\n');
+        expect(harnessFromPsTable(real, 300)).toBe('pi');
     });
 });
