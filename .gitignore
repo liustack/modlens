@@ -42,3 +42,5 @@ test-output
 
 docs/marketing/
 docs/marketing2/
+# local AI review transcripts
+.verify.txt
