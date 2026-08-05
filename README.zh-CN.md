@@ -166,15 +166,13 @@ Codex 桌面 App 里的实拍：丢一张推文截图，纯文本的 DeepSeek �
 | [更新日志](CHANGELOG.md) | 想知道某个版本改了什么 |
 | [AGENTS.md](AGENTS.md) | 要改这个项目的代码 |
 
-## 插入一条硬广告
+## 关注公众号
 
-本项目由 LIUSTACK Skills 驱动：动手前 `shaping` 捋清楚，编码时 `coding` 上纪律，出问题 `dig` 挖根因，交接时 `snapshot` 留快照。比 Superpowers 更轻，也更强。
+AI 工具、实践与想法，第一时间推送。微信扫码关注公众号「liustack」：
 
-```bash
-npx -y skills add liustack/liustack -g
-```
+<img src="https://raw.githubusercontent.com/liustack/modlens/main/assets/wechat-qrcode.png" width="360" alt="微信公众号 liustack" />
 
-⭐ 好用的话给 [ModLens](https://github.com/liustack/modlens) 和 [liustack](https://github.com/liustack/liustack) 各点一个 star。star 是下一个开发者找到它们的方式。
+⭐ 好用的话给 [ModLens](https://github.com/liustack/modlens) 点个 star。star 是下一个开发者找到它的方式。
 
 ## 免责声明
 
