@@ -10,7 +10,7 @@ import {
     CONFIG_PATH,
     initConfigFile,
     loadConfigFile,
-    renderConfig,
+    renderEffectiveConfig,
     setConfigValue,
 } from './config.ts';
 import { listProviders } from './providers/index.ts';
@@ -153,10 +153,10 @@ config
 
 config
     .command('show')
-    .description('Print the effective config with API keys masked')
+    .description('Print the effective config (file merged with env vars), API keys masked')
     .action(() => {
         try {
-            process.stdout.write(`${renderConfig(loadConfigFile())}\n`);
+            process.stdout.write(`${renderEffectiveConfig(loadConfigFile())}\n`);
         } catch (error) {
             process.stderr.write(
                 `Error: ${error instanceof Error ? error.message : String(error)}\n`,

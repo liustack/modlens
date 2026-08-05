@@ -144,21 +144,51 @@ export function initConfigFile(configPath = CONFIG_PATH, force = false): void {
     }
 }
 
-/** Render the effective config with API keys masked. */
-export function renderConfig(config: ModlensConfig): string {
-    const masked: ModlensConfig = {
-        ...config,
-        providers: Object.fromEntries(
-            Object.entries(config.providers ?? {}).map(([name, settings]) => [
-                name,
-                {
-                    ...settings,
-                    ...(settings.apiKey ? { apiKey: maskKey(settings.apiKey) } : {}),
-                },
-            ]),
-        ),
+/**
+ * Render the effective config: the file merged with environment variables, with
+ * API keys masked and every value tagged with where it came from (file or env).
+ *
+ * Reading only the file misled anyone who set a key through GEMINI_API_KEY (or
+ * the other bound vars): the value modlens actually uses never showed up.
+ */
+export function renderEffectiveConfig(
+    config: ModlensConfig,
+    env: NodeJS.ProcessEnv = process.env,
+): string {
+    const providerNames = new Set<string>(Object.keys(config.providers ?? {}));
+    for (const [providerName, bindings] of Object.entries(ENV_BINDINGS)) {
+        if (Object.values(bindings).some((envName) => env[envName]?.trim())) {
+            providerNames.add(providerName);
+        }
+    }
+
+    const providers: Record<string, Record<string, string>> = {};
+    for (const name of [...providerNames].sort()) {
+        const fileSettings = config.providers?.[name] ?? {};
+        const bindings = ENV_BINDINGS[name] ?? {};
+        const fields: Record<string, string> = {};
+        for (const field of ['apiKey', 'baseUrl', 'model'] as const) {
+            const envName = bindings[field];
+            const envValue = envName ? env[envName]?.trim() : undefined;
+            const value = envValue ?? fileSettings[field];
+            const source = envValue ? 'env' : fileSettings[field] !== undefined ? 'file' : null;
+            if (value !== undefined && source) {
+                const shown = field === 'apiKey' ? maskKey(value) : value;
+                fields[field] = `${shown} (${source})`;
+            }
+        }
+        if (Object.keys(fields).length > 0) {
+            providers[name] = fields;
+        }
+    }
+
+    const effective: { provider?: string; providers: Record<string, Record<string, string>> } = {
+        providers,
     };
-    return JSON.stringify(masked, null, 2);
+    if (config.provider?.trim()) {
+        effective.provider = config.provider.trim();
+    }
+    return JSON.stringify(effective, null, 2);
 }
 
 function maskKey(key: string): string {

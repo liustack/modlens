@@ -7,7 +7,7 @@ import {
     defaultProviderName,
     initConfigFile,
     loadConfigFile,
-    renderConfig,
+    renderEffectiveConfig,
     resolveProviderSettings,
     setConfigValue,
 } from './config.ts';
@@ -43,7 +43,7 @@ describe('resolveProviderSettings', () => {
     });
 });
 
-describe('setConfigValue + loadConfigFile + renderConfig', () => {
+describe('setConfigValue + loadConfigFile + renderEffectiveConfig', () => {
     it('round-trips dotted keys and masks keys on render', () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-cfg-'));
         const file = path.join(dir, 'config.json');
@@ -52,11 +52,28 @@ describe('setConfigValue + loadConfigFile + renderConfig', () => {
         const loaded = loadConfigFile(file);
         expect(loaded.provider).toBe('gemini-api');
         expect(loaded.providers?.['gemini-api']?.apiKey).toBe('AIzaSecretSecret123');
-        expect(renderConfig(loaded)).not.toContain('SecretSecret');
+        expect(renderEffectiveConfig(loaded, {})).not.toContain('SecretSecret');
         expect(() => setConfigValue('gemini-api.password', 'x', file)).toThrow(
             'Unknown config field',
         );
         fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('merges env vars over the file and labels each value source', () => {
+        const rendered = renderEffectiveConfig(
+            { provider: 'gemini-api', providers: { 'gemini-api': { model: 'm1' } } },
+            { GEMINI_API_KEY: 'AIzaFromEnv12345' },
+        );
+        const parsed = JSON.parse(rendered) as {
+            provider?: string;
+            providers: Record<string, Record<string, string>>;
+        };
+        expect(parsed.provider).toBe('gemini-api');
+        // apiKey came from the environment, masked, and tagged env.
+        expect(parsed.providers['gemini-api'].apiKey).toMatch(/\(env\)$/);
+        expect(parsed.providers['gemini-api'].apiKey).not.toContain('FromEnv');
+        // model came from the file, tagged file.
+        expect(parsed.providers['gemini-api'].model).toBe('m1 (file)');
     });
 
     it('rejects malformed json with a fix hint', () => {
