@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { providerAliases } from './providers/index.ts';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -28,8 +29,15 @@ export function loadConfigFile(configPath = CONFIG_PATH): ModlensConfig {
     let raw: string;
     try {
         raw = fs.readFileSync(configPath, 'utf-8');
-    } catch {
-        return {};
+    } catch (error) {
+        // Only a missing file means "no config". Permissions or a directory in
+        // its place are real problems, not a reason to fall back to defaults.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return {};
+        }
+        throw new Error(
+            `Cannot read ${configPath}: ${(error as Error).message}. Fix the file or its permissions.`,
+        );
     }
 
     try {
@@ -50,14 +58,6 @@ export function defaultProviderName(config: ModlensConfig): string {
 }
 
 /** Resolve settings for one provider with env vars overriding the config file. */
-/** Aliases the CLI accepts, mapped to the canonical provider name. */
-const PROVIDER_ALIASES: Record<string, string> = {
-    antigravity: 'antigravity-cli',
-    agy: 'antigravity-cli',
-    gemini: 'gemini-api',
-    claude: 'claude-cli',
-};
-
 export function resolveProviderSettings(
     providerName: string,
     config: ModlensConfig,
@@ -65,8 +65,8 @@ export function resolveProviderSettings(
 ): ProviderSettings {
     // Settings saved under an alias (config set gemini.apiKey) were invisible
     // once the name resolved to its canonical form.
-    const aliasNames = Object.entries(PROVIDER_ALIASES)
-        .filter(([, canonical]) => canonical === providerName)
+    const aliasNames = Object.entries(providerAliases())
+        .filter(([alias, canonical]) => canonical === providerName && alias !== providerName)
         .map(([alias]) => alias);
     const fromFile = {
         ...Object.assign({}, ...aliasNames.map((alias) => config.providers?.[alias] ?? {})),

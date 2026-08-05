@@ -95,40 +95,55 @@ interface HarnessAdapter {
  * record the real cwd inside the transcript, so check it before trusting a
  * directory match.
  */
-function transcriptBelongsTo(filePath: string, cwd: string): boolean {
+function transcriptBelongsTo(lines: string[], cwd: string): boolean {
     const wanted = path.resolve(cwd);
-    let raw: string;
-    try {
-        raw = fs.readFileSync(filePath, 'utf-8');
-    } catch {
-        return false;
-    }
-    for (const line of raw.split('\n')) {
+    let sawCwd = false;
+
+    for (const line of lines) {
         if (!line.includes('"cwd"')) {
             continue;
         }
         try {
             const recorded = (JSON.parse(line) as { cwd?: unknown }).cwd;
-            if (typeof recorded === 'string') {
-                const resolved = path.resolve(recorded);
-                return resolved === wanted || resolved.startsWith(`${wanted}${path.sep}`);
+            if (typeof recorded !== 'string') {
+                continue;
+            }
+            sawCwd = true;
+            const resolved = path.resolve(recorded);
+            // Any matching line is enough: a session can start in a
+            // subdirectory and one early line must not settle the question,
+            // which is what returning on the first cwd used to do.
+            if (resolved === wanted || resolved.startsWith(`${wanted}${path.sep}`)) {
+                return true;
             }
         } catch {
             // keep looking
         }
     }
+
     // No cwd recorded at all: the slug is the only evidence we have.
-    return true;
+    return !sawCwd;
+}
+
+/** Read a transcript once: callers need both its cwd lines and its images. */
+function readLines(filePath: string): string[] | null {
+    try {
+        return fs.readFileSync(filePath, 'utf-8').split('\n');
+    } catch {
+        return null;
+    }
 }
 
 function forEachJsonLine(filePath: string, visit: (line: unknown) => void): void {
-    let raw: string;
-    try {
-        raw = fs.readFileSync(filePath, 'utf-8');
-    } catch {
+    const lines = readLines(filePath);
+    if (!lines) {
         return;
     }
-    for (const line of raw.split('\n')) {
+    forEachParsedLine(lines, visit);
+}
+
+function forEachParsedLine(lines: string[], visit: (line: unknown) => void): void {
+    for (const line of lines) {
         if (!line.includes('"image"')) {
             continue;
         }
@@ -159,11 +174,11 @@ function jsonlSource(
 }
 
 function newestJsonlTimestamp(
-    filePath: string,
+    lines: string[],
     extractLine: (line: unknown) => ImageBlockRef[],
 ): number | null {
     let latest: number | null = null;
-    forEachJsonLine(filePath, (line) => {
+    forEachParsedLine(lines, (line) => {
         if (extractLine(line).length === 0) {
             return;
         }
@@ -200,10 +215,11 @@ function jsonlAdapter(options: {
         findNewest: (cwd) => {
             let best: { ref: SourceRef; timestamp: number } | null = null;
             for (const file of listJsonl(dirFor(cwd))) {
-                if (!transcriptBelongsTo(file, cwd)) {
+                const lines = readLines(file);
+                if (!lines || !transcriptBelongsTo(lines, cwd)) {
                     continue;
                 }
-                const timestamp = newestJsonlTimestamp(file, extractLine);
+                const timestamp = newestJsonlTimestamp(lines, extractLine);
                 if (timestamp !== null && (!best || timestamp > best.timestamp)) {
                     best = { ref: jsonlSource(name, file, extractLine), timestamp };
                 }
@@ -212,7 +228,11 @@ function jsonlAdapter(options: {
         },
         findSession: (cwd, sessionId) => {
             for (const file of listJsonl(dirFor(cwd))) {
-                if (matchesSession(path.basename(file), sessionId) && transcriptBelongsTo(file, cwd)) {
+                if (!matchesSession(path.basename(file), sessionId)) {
+                    continue;
+                }
+                const lines = readLines(file);
+                if (lines && transcriptBelongsTo(lines, cwd)) {
                     return jsonlSource(name, file, extractLine);
                 }
             }
@@ -464,7 +484,12 @@ export function harnessFromPsTable(psOutput: string, startPid: number): string |
         const tokens = proc.command.trim().split(/\s+/);
         const candidates = [tokens[0]];
         if (/^(node|bun|deno)$/.test(path.basename(tokens[0] ?? ''))) {
-            const script = tokens.slice(1).find((token) => !token.startsWith('-'));
+            // A flag's value is not the script: `node --require pi app.js` used
+            // to be read as Pi. Take the first token that looks like a path to
+            // a script file.
+            const script = tokens
+                .slice(1)
+                .find((token) => !token.startsWith('-') && /[/\\]|\.(m|c)?[jt]s$/.test(token));
             if (script) {
                 candidates.push(script);
             }
@@ -589,6 +614,15 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
             'This is a Codex session: pasted images already exist as temp files, and each image tag in the message carries its path. Read the path from the tag instead of running recover-paste.',
         );
     }
+    // Validate the requested harness even when --transcript short-circuits
+    // detection, or a typo silently parsed the file as Claude Code.
+    const requested = options.harness?.trim();
+    if (requested && requested !== 'none' && !ADAPTERS.some((a) => a.name === requested)) {
+        throw new Error(
+            `Unknown harness "${requested}". Supported: ${ADAPTERS.map((a) => a.name).join(', ')} (or none to scan all).`,
+        );
+    }
+
     const scoped: string | null = detected && detected !== 'none' ? detected : null;
     if (scoped && !ADAPTERS.some((adapter) => adapter.name === scoped)) {
         throw new Error(

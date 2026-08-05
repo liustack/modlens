@@ -6,6 +6,7 @@ import {
     buildAntigravityInvocation,
     DEFAULT_MODEL,
     describeAntigravityFailure,
+    parseAgyLogTime,
     parseAntigravityOutput,
 } from './antigravity.ts';
 import { VISION_RESULT_SCHEMA } from '../schema.ts';
@@ -118,6 +119,12 @@ describe('describeAntigravityFailure', () => {
         fs.rmSync(fakeHome, { recursive: true, force: true });
     });
 
+    /** glog-style line stamped now, which is what the filter looks for. */
+    function logLine(message: string, at = new Date()): string {
+        const two = (n: number) => String(n).padStart(2, '0');
+        return `I${two(at.getMonth() + 1)}${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())}.000000       1 x.go:1] ${message}`;
+    }
+
     function writeAgyLog(contents: string): void {
         const dir = path.join(fakeHome, '.gemini', 'antigravity-cli', 'log');
         fs.mkdirSync(dir, { recursive: true });
@@ -135,7 +142,9 @@ describe('describeAntigravityFailure', () => {
     it('explains a locked keyring when agy logs an auth failure', () => {
         // agy's own envelope is generic here: the real cause is only in its log.
         writeAgyLog(
-            'Failed to poll ListExperiments: error getting token source: You are not logged into Antigravity.',
+            logLine(
+                'Failed to poll ListExperiments: error getting token source: You are not logged into Antigravity.',
+            ),
         );
         const message = describeAntigravityFailure({
             stdout: errorEnvelope('Agent execution terminated due to error.'),
@@ -177,7 +186,7 @@ describe('describeAntigravityFailure', () => {
     });
 
     it('ignores stale logs from earlier runs', () => {
-        writeAgyLog('error getting token source: You are not logged into Antigravity.');
+        writeAgyLog(logLine('error getting token source: You are not logged into Antigravity.'));
         const logFile = path.join(
             fakeHome,
             '.gemini',
@@ -195,5 +204,51 @@ describe('describeAntigravityFailure', () => {
         });
         expect(message).not.toContain('keyring is locked');
         expect(message).toContain('Agent execution terminated');
+    });
+});
+
+describe('log evidence is scoped to this run', () => {
+    it('ignores lines written before the run started', () => {
+        // A quota failure from a minute ago, or a concurrent agy call, must not
+        // decide what went wrong with this one.
+        const old = new Date(Date.now() - 90_000);
+        const stamp = (at: Date) => {
+            const two = (n: number) => String(n).padStart(2, '0');
+            return `I${two(at.getMonth() + 1)}${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())}.000000       1 x.go:1] Individual quota reached.`;
+        };
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-scope-'));
+        const dir = path.join(home, '.gemini', 'antigravity-cli', 'log');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'cli.log'), stamp(old));
+
+        const realHome = process.env.HOME;
+        process.env.HOME = home;
+        try {
+            const message = describeAntigravityFailure({
+                stdout: JSON.stringify({
+                    status: 'ERROR',
+                    error: 'Agent execution terminated due to error.',
+                    usage: { total_tokens: 0 },
+                }),
+                stderr: '',
+                code: 1,
+                startedAt: Date.now() - 5_000,
+            });
+            expect(message).not.toContain('weekly bucket');
+            expect(message).toContain('Agent execution terminated');
+        } finally {
+            process.env.HOME = realHome;
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('reads glog timestamps, including a year rollover', () => {
+        const now = new Date('2026-08-05T17:50:43.000Z');
+        const parsed = parseAgyLogTime('I0805 17:50:43.527613       1 x.go:1] hi', now);
+        expect(parsed).not.toBeNull();
+        expect(Math.abs((parsed as number) - new Date(2026, 7, 5, 17, 50, 43).getTime())).toBeLessThan(1000);
+        // A December line seen in January belongs to last year.
+        const january = new Date(2026, 0, 2, 0, 0, 0);
+        expect(parseAgyLogTime('I1231 23:59:00.0 1 x.go:1] hi', january)).toBeLessThan(january.getTime());
     });
 });

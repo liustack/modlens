@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.7.5 - 2026-08-05
+
+A verification pass on the 2.7.4 fixes (same external reviewer) found four that did not hold and three bugs the fixes themselves introduced. All seven are addressed here.
+
+**Fixes that did not hold**
+
+- Unreadable config files still became empty configs: the 2.7.4 edit never applied, because this file is indented differently from its sibling project. Permissions errors now surface.
+- Harness detection still matched a flag's value: `node --require pi app.js` read as Pi. The script behind a node shim must now look like a path to a script.
+- agy log evidence was scoped by file mtime alone, so a concurrent call or an older failure in the same file still misdiagnosed this run. Lines are now filtered by their own glog timestamps.
+- The openai schema check only looked at top-level keys, so `{"ocr":{}}` passed. Nested required fields are checked.
+
+**Bugs introduced by the 2.7.4 fixes**
+
+- `transcriptBelongsTo` returned on the first recorded cwd, so a transcript whose first line matched could still hand over another project's images. Any matching line now decides, and a transcript with cwd lines that all mismatch is rejected.
+- That check also read every transcript in full, then the image scan read it again. Each file is read once.
+- The alias table added for config lookups was written by hand and did not match the real provider aliases (`claude` resolves to `anthropic`, not `claude-cli`, and `claude-code` and `openai-compat` were missing), so settings landed on the wrong provider. The table now comes from the provider registry.
+- `--transcript` skipped harness validation, so `--harness bogus` silently parsed the file as Claude Code.
+
 ## 2.7.4 - 2026-08-05
 
 Correctness and privacy pass after an external review (gpt-5.6-sol) that proved every finding with a probe.

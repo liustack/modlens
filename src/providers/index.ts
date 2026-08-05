@@ -81,6 +81,17 @@ export function resolveProvider(providerName = 'antigravity-cli'): VisionProvide
     return provider;
 }
 
+/**
+ * Every accepted spelling mapped to the canonical provider name. Exported so
+ * the config layer reads settings saved under an alias without keeping its own
+ * copy of this table, which drifted the moment it was duplicated.
+ */
+export function providerAliases(): Record<string, string> {
+    return Object.fromEntries(
+        Object.entries(PROVIDERS).map(([alias, provider]) => [alias, provider.name]),
+    );
+}
+
 export function listProviders(): string[] {
     return [...new Set(Object.values(PROVIDERS).map((provider) => provider.name))];
 }

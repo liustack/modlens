@@ -82,18 +82,10 @@ Respond with ONE JSON object only, no markdown fences, no commentary. Fill this 
     }
     // No portable server-side schema enforcement on this route, so verify the
     // shape instead of silently returning something that only looks right.
-    // A token check let {"summary":"x","ocr":null} through, along with results
-    // missing every other required field.
-    const shaped = result as Record<string, unknown>;
-    const missing = ['summary', 'ocr', 'layout', 'semantics', 'visual', 'uncertainty'].filter(
-        (field) => shaped[field] === undefined || shaped[field] === null,
-    );
-    if (
-        missing.length > 0 ||
-        typeof shaped.summary !== 'string' ||
-        typeof shaped.ocr !== 'object' ||
-        !Array.isArray(shaped.uncertainty)
-    ) {
+    // Checking only top-level keys still let {"ocr":{}} through, so the model
+    // received an empty shell that looked like evidence.
+    const missing = missingSchemaFields(result);
+    if (missing.length > 0) {
         throw new Error(
             `OpenAI-compatible API returned JSON that does not match the vision schema${missing.length > 0 ? ` (missing: ${missing.join(', ')})` : ''}. Retry, or switch to gemini-api / anthropic for enforced schemas. Got: ${truncate(text)}`,
         );
@@ -107,6 +99,37 @@ Respond with ONE JSON object only, no markdown fences, no commentary. Fill this 
             usage: payload.usage ?? null,
         },
     };
+}
+
+/**
+ * Required fields the vision contract promises, nested ones included. Returns
+ * the paths that are absent or the wrong type.
+ */
+export function missingSchemaFields(result: unknown): string[] {
+    const missing: string[] = [];
+    const root = (result ?? {}) as Record<string, unknown>;
+    const child = (key: string) =>
+        (root[key] && typeof root[key] === 'object' ? root[key] : {}) as Record<string, unknown>;
+
+    const expect = (path: string, ok: boolean) => {
+        if (!ok) {
+            missing.push(path);
+        }
+    };
+
+    expect('summary', typeof root.summary === 'string');
+    expect('ocr', typeof root.ocr === 'object' && root.ocr !== null);
+    expect('ocr.full_text', typeof child('ocr').full_text === 'string');
+    expect('ocr.lines', Array.isArray(child('ocr').lines));
+    expect('layout', typeof root.layout === 'object' && root.layout !== null);
+    expect('layout.regions', Array.isArray(child('layout').regions));
+    expect('semantics', typeof root.semantics === 'object' && root.semantics !== null);
+    expect('semantics.scene', typeof child('semantics').scene === 'string');
+    expect('semantics.entities', Array.isArray(child('semantics').entities));
+    expect('visual', typeof root.visual === 'object' && root.visual !== null);
+    expect('uncertainty', Array.isArray(root.uncertainty));
+
+    return missing;
 }
 
 function toDataUrl(image: { data: string; mimeType: string }): string {

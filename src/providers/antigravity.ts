@@ -183,7 +183,37 @@ function agyLogDir(): string {
 // Older logs belong to earlier runs and would misdiagnose this one.
 const LOG_FRESHNESS_MS = 2 * 60 * 1000;
 
-/** Tail of agy's newest log file when it belongs to this run, else empty. */
+/**
+ * glog lines look like `I0805 17:50:43.527613 ...`: month, day, wall clock, no
+ * year. Returns epoch ms, assuming the current year and the nearest sensible
+ * side of a year boundary.
+ */
+export function parseAgyLogTime(line: string, now = new Date()): number | null {
+    const match = /\b[IWEF](\d{2})(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/.exec(line);
+    if (!match) {
+        return null;
+    }
+    const [, month, day, hour, minute, second, fraction] = match;
+    const stamp = new Date(
+        now.getFullYear(),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second),
+        fraction ? Number(fraction.slice(0, 3)) : 0,
+    ).getTime();
+    // A log line dated in the future means the year rolled over since it was written.
+    return stamp - now.getTime() > 24 * 60 * 60 * 1000
+        ? new Date(new Date(stamp).setFullYear(now.getFullYear() - 1)).getTime()
+        : stamp;
+}
+
+/**
+ * Lines from agy's newest log that were written during this run. Filtering by
+ * file mtime alone was not enough: a concurrent agy call, or an older failure
+ * in the same file, could be read as evidence about this one.
+ */
 function readRecentAgyLog(since: number): string {
     try {
         const dir = agyLogDir();
@@ -199,8 +229,15 @@ function readRecentAgyLog(since: number): string {
         if (!newest || newest.mtime < since) {
             return '';
         }
-        // Only the tail matters, and these files can get large.
-        return fs.readFileSync(newest.full, 'utf-8').slice(-8000);
+        const recent = fs
+            .readFileSync(newest.full, 'utf-8')
+            .slice(-64_000)
+            .split('\n')
+            .filter((line) => {
+                const stamp = parseAgyLogTime(line);
+                return stamp !== null && stamp >= since;
+            });
+        return recent.join('\n');
     } catch {
         return '';
     }
