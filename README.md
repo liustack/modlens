@@ -11,13 +11,13 @@
 
 DeepSeek-V4-Flash gives you a lot of model for very little money: fast, strong, and its one real flaw is no multimodal. And it's not just DeepSeek. Every text-only model running inside Codex, Claude Code, Pi Agent, or OpenClaw hits the same wall.
 
-ModLens fixes this the lightest way possible. It never touches your config and never adds a local proxy. It's just a vision plug-in, usable as a CLI or as an Agent Skill, that turns any image into structured visual evidence: text, layout, regions, entities, relations, visual clues. Under the hood it runs on [Antigravity CLI](https://antigravity.google) (`agy`), whose vision comes from free-quota Gemini 3.6 Flash. And Gemini's image understanding is famously good, good enough to embarrass most flagships, Fable 5 included. How it works:
+ModLens fixes this the lightest way possible: it never touches your config, never adds a local proxy, and is just a vision plug-in you can run as a CLI or install as an Agent Skill. What it hands back is not a one-line caption but structured visual evidence: text, layout, regions, entities, relations, visual clues. Five vision engines to pick from. The default one needs no key at all, and the fastest one runs on a free Gemini key whose image understanding embarrasses most flagships, Fable 5 included. How it works:
 
 ```text
 text-only model in your agent harness ──▶ modlens skill (auto-triggers on images)
                               │
                               ▼
-                   agy · Gemini 3.6 Flash (free quota)
+                  vision engine · Gemini 3.6 Flash (free)
                               │
                               ▼
               structured JSON evidence ──▶ model answers with sight
@@ -25,35 +25,15 @@ text-only model in your agent harness ──▶ modlens skill (auto-triggers on 
 
 ## You can just paste the image
 
-The mainstream way to give a text-only model sight is a vision MCP server. Read their docs and you'll find the same admission: they can't catch a paste. The reason is structural. Pasting is handled entirely by the client: the moment an image lands in the chat box, the client encodes it and sends it straight to the model, and the MCP server never gets a chance to step in. The usual advice is to save the image to a local folder first, then mention the filename or path in the chat.
+Every other bridge makes you save the image to a file first, then mention the path in the chat. ModLens lets you paste it.
 
-ModLens catches that paste. You paste, the text-only model can't see it (the gateway strips the image down to a pathless placeholder), and the skill quietly pulls the image bytes back out of local session storage, writes them to a file, and feeds that to the vision engine. The model answers with the full image content, not a request for a path. You do nothing extra.
+That is not laziness on their part. Pasting is handled end to end by the client: the moment an image lands in the chat box it is encoded and sent, and a vision MCP server never gets a chance to step in, which is why their docs can only tell you to save the file and report the path. ModLens takes the other route. Before those bytes are ever sent, the harness has already written them to local session storage, so the skill goes there, pulls them back out into a real file, and feeds that to the vision engine. You do nothing, and the model answers with the full image instead of asking you for a path.
 
-Verified on real machines across all four harnesses: Claude Code pinpoints the exact session via the injected session id, Pi stores sessions the same way, OpenCode swaps in SQLite, and Codex's pasted images already carry a temp file path, so the skill takes the path-tag route and never misuses recovery. `recover-paste` figures out which harness it is running inside first, by walking the process ancestry and checking environment fingerprints, then reads only that harness's storage, so another tool's stale sessions can't impersonate it.
-
-As far as we know, no other tool catches this paste yet. The usual answer is save the file, then report the path. ModLens's answer is just paste it.
+Verified on real machines across four harnesses: Claude Code pinpoints the exact session from its injected session id, Pi stores sessions the same way, OpenCode swaps in SQLite, and Codex's pasted images already carry a temp path so the path-tag route handles them. Before touching anything, `recover-paste` works out which harness it is running inside, by walking the process ancestry and checking environment fingerprints, and reads only that harness's storage, so another tool's stale sessions can't impersonate it.
 
 ## Quick start
 
-**1. Pick a path and wire up a vision engine** (one-time, pick either one):
-
-**Recommended: grab a free Gemini key.** Three minutes, no credit card, 5-10 seconds per image versus 15-40 for agy, and you won't hit a quota wall nearly as fast. Get a key at [aistudio.google.com](https://aistudio.google.com), then:
-
-```bash
-modlens config set gemini-api.apiKey <key>
-modlens config set provider gemini-api
-```
-
-Don't want to type that? Install the skill (step 2 below), then just tell your agent: "set my Gemini key in modlens." It'll run those two commands for you.
-
-**Or: no sign-up, start right now with Antigravity CLI.** No key, pure free quota, but slower (15-40s) and the quota is tight. Details below in Providers and config.
-
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy    # opens browser sign-in, then exit
-```
-
-**2. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**1. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
 ```text
 Install the skill from https://github.com/liustack/modlens
@@ -67,7 +47,23 @@ npx -y skills add liustack/modlens
 
 Harnesses look for skills in different places: Claude Code reads `~/.claude/skills/`, Codex reads `~/.codex/skills/`, Pi and OpenCode read `~/.agents/skills/`. Symlinks work in all of them, so linking the skill folder once keeps every agent on the latest version.
 
-**3. Use it.** Paste an image (or its path) and ask anything. The skill fires on its own.
+**2. Wire up a vision engine.** Recommended: a free Gemini key from [aistudio.google.com](https://aistudio.google.com). Three minutes, no credit card, 5-10 seconds per image:
+
+```bash
+modlens config set gemini-api.apiKey <key>
+modlens config set provider gemini-api
+```
+
+Don't feel like typing those two lines? Tell your agent "set my Gemini key in modlens" and it runs them for you.
+
+Skipping the sign-up is fine too: Antigravity CLI works with no key at all, it is just slower (15-40s) and its free quota is tight.
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy    # opens browser sign-in, then exit
+```
+
+**3. Use it.** Paste an image, or throw a path at it, and ask anything. The skill fires on its own.
 
 ## See it work
 
@@ -157,7 +153,7 @@ ModLens ships five vision providers. `antigravity-cli` stays the default: zero k
 | `anthropic` | `ANTHROPIC_API_KEY` | a few seconds | Claude Haiku by default, schema via forced tool call |
 | `claude-cli` | Claude Code signed in | 20-45s | no key, rides your Claude subscription, Read-only permissions |
 
-`antigravity-cli` is free, but it costs you on both ends. It's slower (a full agent loop takes 15-40 seconds, versus 5-10 for `gemini-api` direct), and the quota is tight. At launch in November 2025 the free tier was 250 requests a day. By December it was cut to 20 a day. In 2026 it moved to a one-time weekly grant, and once you hit it, you wait out the cycle: we hit that wall ourselves, and the message read "94 hours until reset." That quota is also a shared pool across the desktop app, the CLI, and the SDK, and running subagents in parallel drains it faster. For steady work, `gemini-api` is the better bet.
+`antigravity-cli` wins on needing no key and loses on both other fronts: it's slower (a full agent loop takes 15-40 seconds against 5-10 for `gemini-api` direct) and its quota is tight. The free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK, and parallel subagents drain it faster. Once it's gone you wait out the cycle: we hit that wall ourselves and the message read "94 hours until reset." Great for a first look, but `gemini-api` is what holds up day to day.
 
 Config lives in `~/.modlens/config.json`. Environment variables override the file (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `ANTHROPIC_API_KEY`), and CLI flags override everything.
 
@@ -170,7 +166,7 @@ modlens config set provider gemini-api       # switch the default provider
 
 The free Gemini key takes three minutes at [aistudio.google.com](https://aistudio.google.com), no credit card.
 
-Don't want to type the commands yourself? Once the skill is installed, these are all one sentence away: ask your agent "how do I configure modlens," "set my Gemini key in modlens," or "switch modlens to claude-cli." It follows the skill's own provider setup guide and runs the `modlens config set` commands for you. No docs to read, no flags to memorize.
+You don't actually have to remember any of these commands. The skill ships a per-provider setup guide, so once it's installed you can just ask your agent: "how do I configure modlens," "set my Gemini key in modlens," "switch modlens to claude-cli." It reads the guide and runs them.
 
 ## Using it in Codex (DeepSeek and friends)
 

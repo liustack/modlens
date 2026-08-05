@@ -11,13 +11,13 @@
 
 DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，要说唯一的缺点就是没有多模态。不仅 DeepSeek-V4-Flash，只要是纯文本语言模型，跑在 Codex、Claude Code、Pi Agent、OpenClaw 中，都有这个问题。
 
-ModLens 用最轻量级方案解决这个问题。ModLens 不会入侵你的配置，也不会给你添加本地代理，ModLens 只是一个视觉外挂，有 cli 或 skill 两种模式。ModLens 能产出结构化的视觉证据：文字、版面、区块、实体、关系、视觉线索。ModLens 由 [Antigravity CLI](https://antigravity.google)（`agy`）驱动，而 Antigravity 的视觉由免费额度的 Gemini 3.6 Flash 驱动。Gemini 的识图能力，连 Fable 5 都吊打。原理如下：
+ModLens 用最轻的方式解决它：不动你的配置，不装本地代理，就是一个视觉外挂，CLI 和 skill 两种用法。它产出的不是一句话描述，是结构化的视觉证据：文字、版面、区块、实体、关系、视觉线索。视觉引擎有五个可选，默认那个零 key 就能跑，最快的那个用免费 Gemini key，识图能力连 Fable 5 都吊打。原理如下：
 
 ```text
 Agent Harness 中的纯文本模型 ──▶ modlens skill（遇到图片自动触发）
                         │
                         ▼
-             agy · Gemini 3.6 Flash（免费额度）
+             视觉引擎 · Gemini 3.6 Flash（免费）
                         │
                         ▼
            结构化 JSON 证据 ──▶ 模型带着视力回答
@@ -25,35 +25,15 @@ Agent Harness 中的纯文本模型 ──▶ modlens skill（遇到图片自动
 
 ## 你可以直接粘贴图片
 
-纯文本模型想看图，主流方案是装一个识图 MCP server。翻开它们的文档，你会看到一句坦白：接不住粘贴。原因很简单，粘贴这个动作从头到尾都是客户端自己办的，图一贴进对话框，客户端就把它转码直接发给模型了，MCP server 连插手的机会都没有。文档给的建议通常是：先把图存到本地某个目录，再在对话里报一句文件名或路径。
+别的方案让你先把图存成文件，再在对话里报一句路径。ModLens 让你直接粘贴。
 
-ModLens 接住了这一下。你粘贴，纯文本模型看不见（网关把图剥成一个不带路径的占位符），skill 自动从本地的会话存储里把图片字节捞回来落成文件，再喂给视觉引擎。模型拿到的是完整图片内容，不是一句「麻烦告诉我路径」。整个过程你不用做任何事。
+这不怪它们偷懒。粘贴这个动作从头到尾是客户端办的，图一进对话框就被转码发走，识图 MCP server 连插手的机会都没有，所以它们的文档只能教你存文件、报路径。ModLens 走的是另一条路：图片字节在发走之前，早被 harness 原样写进了本地会话存储，skill 直接去那里把它捞回来落成文件，再喂给视觉引擎。你什么都不用做，模型拿到的是完整图片，不是一句「麻烦告诉我路径」。
 
-四家主流 harness 都在真机上验证过：Claude Code 用注入的会话 ID 精确定位到当前会话，Pi 的存储路数和它一样，OpenCode 换成了 SQLite，Codex 的粘贴图本来就带临时文件路径，skill 走路径标签这条路，不会误用恢复逻辑。`recover-paste` 会先判断自己正跑在哪一家宿主里（沿进程祖先链往上查，再核对环境变量指纹），只读那一家的存储，别家的旧会话没机会冒充。
-
-据我们所知，还没有第二个工具接住粘贴这一下。别的方案是先存文件、再报路径。ModLens 是你直接粘贴。
+四家 harness 真机验证过：Claude Code 按注入的会话 ID 精确定位，Pi 的存储路数和它同构，OpenCode 换成了 SQLite，Codex 的粘贴图本来就带临时路径，走路径标签就行。动手之前 `recover-paste` 会先认清自己跑在哪一家（查进程祖先链，核对环境变量指纹），只读那一家的存储，别家的旧会话冒充不了。
 
 ## 快速开始
 
-**1. 选一条路，把视觉引擎接好**（一次性，选一条就好）：
-
-**推荐：领一个免费 Gemini key。** 三分钟，不要信用卡，直连模型 5-10 秒出结果（agy 要 15-40 秒），额度也没那么容易撞墙。去 [aistudio.google.com](https://aistudio.google.com) 拿到 key，然后：
-
-```bash
-modlens config set gemini-api.apiKey <key>
-modlens config set provider gemini-api
-```
-
-嫌敲命令麻烦？装完下面第 2 步的 skill 后，直接跟你的 agent 说「帮我把 Gemini key 配进 modlens」，它会替你跑完这两行。
-
-**次选：不想注册、想立刻开跑，就直接用 Antigravity CLI。** 零 key，纯免费额度，但慢一些（15-40 秒），额度也紧，细节见下文「Provider 与配置」。
-
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy    # 浏览器完成登录后退出
-```
-
-**2. 安装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
+**1. 装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
 
 ```text
 安装这个 skill https://github.com/liustack/modlens
@@ -67,7 +47,23 @@ npx -y skills add liustack/modlens
 
 各家 harness 找 skill 的位置不一样：Claude Code 读 `~/.claude/skills/`，Codex 读 `~/.codex/skills/`，Pi 和 OpenCode 读 `~/.agents/skills/`。软链接在哪家都好使，把 skill 目录链一次，各家永远用最新版。
 
-**3. 用起来。** 粘贴一张图（或者图片路径），随便问，skill 会自动触发。
+**2. 接一个视觉引擎。** 推荐去 [aistudio.google.com](https://aistudio.google.com) 领个免费 Gemini key，三分钟，不要信用卡，出图 5-10 秒：
+
+```bash
+modlens config set gemini-api.apiKey <key>
+modlens config set provider gemini-api
+```
+
+懒得敲这两行？跟 agent 说一句「帮我把 Gemini key 配进 modlens」，它自己会跑。
+
+不想注册也行，装上 Antigravity CLI 就能零 key 开跑，代价是慢（15-40 秒），免费额度也紧：
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy    # 浏览器完成登录后退出
+```
+
+**3. 用起来。** 粘贴一张图，或者甩个图片路径，随便问。skill 自己会触发。
 
 ## 看看效果
 
@@ -157,7 +153,7 @@ ModLens 内置五个视觉 provider，默认还是 `antigravity-cli`：零 key�
 | `anthropic` | `ANTHROPIC_API_KEY` | 几秒 | 默认 Claude Haiku，强制工具调用保 schema |
 | `claude-cli` | Claude Code 已登录 | 20-45 秒 | 零 key，吃你的 Claude 订阅额度，只放行 Read 工具 |
 
-`antigravity-cli` 免费，但两头都紧：慢（完整 agent 循环要 15-40 秒，`gemini-api` 直连只要 5-10 秒），额度也紧。2025 年 11 月刚上线时每天 250 次请求，12 月直接砍到每天 20 次，2026 年又改成一次性发放的周配额，用超了就得等下一个周期重置，我们实测撞过一次墙，提示是「94 小时后重置」。这份配额还是桌面应用、CLI、SDK 三头共用一个池子，用 subagent 并行跑消耗得更快。想稳定干活，还是建议换成 `gemini-api`。
+`antigravity-cli` 胜在零 key，输在两头：慢（完整 agent 循环 15-40 秒，`gemini-api` 直连 5-10 秒），额度紧。它的免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，subagent 并行还加倍消耗，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。所以它适合尝鲜，日常主力还是 `gemini-api` 稳。
 
 配置放在 `~/.modlens/config.json`，环境变量能盖过它（`GEMINI_API_KEY`、`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`ANTHROPIC_API_KEY`），CLI 参数最大。
 
@@ -170,7 +166,7 @@ modlens config set provider gemini-api       # 换默认 provider
 
 免费 Gemini key 去 [aistudio.google.com](https://aistudio.google.com) 领，三分钟，不要信用卡。
 
-嫌自己敲命令麻烦？装完 skill 之后这些配置全部能甩给 agent：问一句「modlens 怎么配置」「帮我把 Gemini key 配进 modlens」「把默认 provider 切成 claude-cli」，agent 会照着 skill 自带的配置手册，自己跑 `modlens config set` 这些命令，不用你查文档，也不用你记参数。
+这些命令你其实一条都不用记。skill 自带一份分 provider 的配置手册，装完之后直接问你的 agent：「modlens 怎么配置」「帮我把 Gemini key 配进 modlens」「把默认 provider 切成 claude-cli」，它照着手册自己跑完。
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
