@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { VISION_RESULT_SCHEMA } from '../schema.ts';
 import {
     buildAntigravityInvocation,
     DEFAULT_MODEL,
@@ -9,7 +10,6 @@ import {
     parseAgyLogTime,
     parseAntigravityOutput,
 } from './antigravity.ts';
-import { VISION_RESULT_SCHEMA } from '../schema.ts';
 
 describe('buildAntigravityInvocation', () => {
     it('builds agy print invocation with schema-enforced json output', () => {
@@ -246,9 +246,13 @@ describe('log evidence is scoped to this run', () => {
         const now = new Date('2026-08-05T17:50:43.000Z');
         const parsed = parseAgyLogTime('I0805 17:50:43.527613       1 x.go:1] hi', now);
         expect(parsed).not.toBeNull();
-        expect(Math.abs((parsed as number) - new Date(2026, 7, 5, 17, 50, 43).getTime())).toBeLessThan(1000);
+        expect(
+            Math.abs((parsed as number) - new Date(2026, 7, 5, 17, 50, 43).getTime()),
+        ).toBeLessThan(1000);
         // A December line seen in January belongs to last year.
         const january = new Date(2026, 0, 2, 0, 0, 0);
-        expect(parseAgyLogTime('I1231 23:59:00.0 1 x.go:1] hi', january)).toBeLessThan(january.getTime());
+        expect(parseAgyLogTime('I1231 23:59:00.0 1 x.go:1] hi', january)).toBeLessThan(
+            january.getTime(),
+        );
     });
 });

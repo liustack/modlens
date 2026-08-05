@@ -35,10 +35,14 @@ describe('resolveProviderSettings', () => {
     });
 
     it('binds openai and anthropic base urls from env', () => {
-        const settings = resolveProviderSettings('openai', {}, {
-            OPENAI_API_KEY: 'k',
-            OPENAI_BASE_URL: 'https://gw.example.com/v1',
-        });
+        const settings = resolveProviderSettings(
+            'openai',
+            {},
+            {
+                OPENAI_API_KEY: 'k',
+                OPENAI_BASE_URL: 'https://gw.example.com/v1',
+            },
+        );
         expect(settings.baseUrl).toBe('https://gw.example.com/v1');
     });
 });

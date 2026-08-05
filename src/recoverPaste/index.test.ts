@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { claudeProjectSlug, extractUserImages, piSessionSlug, recoverPastedImages } from './index.ts';
+import {
+    claudeProjectSlug,
+    extractUserImages,
+    piSessionSlug,
+    recoverPastedImages,
+} from './index.ts';
 
 // The suite itself runs inside a real harness (its process ancestry and env
 // would trip detection), so default every test to unscoped scanning and let
@@ -128,9 +133,15 @@ describe('locateTranscript (via recoverPastedImages)', () => {
         fs.mkdirSync(dir, { recursive: true });
 
         // session a: older image, but file touched later (concurrent activity)
-        fs.writeFileSync(path.join(dir, 'a.jsonl'), imageLine('old-image', '2026-08-03T01:00:00.000Z'));
+        fs.writeFileSync(
+            path.join(dir, 'a.jsonl'),
+            imageLine('old-image', '2026-08-03T01:00:00.000Z'),
+        );
         // session b: the actual paste, newer image timestamp, older mtime
-        fs.writeFileSync(path.join(dir, 'b.jsonl'), imageLine('new-image', '2026-08-03T02:00:00.000Z'));
+        fs.writeFileSync(
+            path.join(dir, 'b.jsonl'),
+            imageLine('new-image', '2026-08-03T02:00:00.000Z'),
+        );
         const past = new Date(Date.now() - 60_000);
         fs.utimesSync(path.join(dir, 'b.jsonl'), past, past);
 
@@ -339,7 +350,12 @@ describe('cross-project safety', () => {
     it('rejects a transcript whose recorded cwd belongs to another project', () => {
         // /tmp/project.alpha and /tmp/project-alpha share one Claude slug.
         const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-collide-'));
-        const slugDir = path.join(home, '.claude', 'projects', claudeProjectSlug('/tmp/project-alpha'));
+        const slugDir = path.join(
+            home,
+            '.claude',
+            'projects',
+            claudeProjectSlug('/tmp/project-alpha'),
+        );
         fs.mkdirSync(slugDir, { recursive: true });
         fs.writeFileSync(
             path.join(slugDir, 'other.jsonl'),
@@ -363,7 +379,10 @@ describe('cross-project safety', () => {
         const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-perm-'));
         const dir = path.join(home, '.claude', 'projects', claudeProjectSlug('/tmp/p'));
         fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(path.join(dir, 'c.jsonl'), imageLine('secret', '2026-08-05T09:00:00.000Z'));
+        fs.writeFileSync(
+            path.join(dir, 'c.jsonl'),
+            imageLine('secret', '2026-08-05T09:00:00.000Z'),
+        );
 
         const realHome = process.env.HOME;
         process.env.HOME = home;

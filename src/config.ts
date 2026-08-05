@@ -1,7 +1,7 @@
 import * as fs from 'fs';
-import { providerAliases } from './providers/index.ts';
 import * as os from 'os';
 import * as path from 'path';
+import { providerAliases } from './providers/index.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modlens/config.json > built-ins.
 

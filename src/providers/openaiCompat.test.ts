@@ -7,12 +7,12 @@ import { executeOpenaiCompat } from './openaiCompat.ts';
 // A full instance of the contract: the shape check now requires every field,
 // because a gateway returning half of it is not a usable vision result.
 const structured = {
-  summary: 'ok',
-  ocr: { full_text: '', lines: [] },
-  layout: { regions: [] },
-  semantics: { scene: '', intent: '', entities: [], relations: [] },
-  visual: { dominant_colors: [], style: '', notes: [] },
-  uncertainty: [],
+    summary: 'ok',
+    ocr: { full_text: '', lines: [] },
+    layout: { regions: [] },
+    semantics: { scene: '', intent: '', entities: [], relations: [] },
+    visual: { dominant_colors: [], style: '', notes: [] },
+    uncertainty: [],
 };
 let tmpImage: string;
 
@@ -58,9 +58,7 @@ describe('executeOpenaiCompat', () => {
         });
 
         const body = JSON.parse(String(calls[0].init.body));
-        const text = body.messages[0].content.find(
-            (b: { type: string }) => b.type === 'text',
-        ).text;
+        const text = body.messages[0].content.find((b: { type: string }) => b.type === 'text').text;
         expect(text).toContain('Fill this exact structure');
         expect(text).not.toContain('"type":"object"');
     });
@@ -99,9 +97,7 @@ describe('executeOpenaiCompat', () => {
             async () =>
                 new Response(
                     JSON.stringify({
-                        choices: [
-                            { message: { content: '{"type":"object","properties":{}}' } },
-                        ],
+                        choices: [{ message: { content: '{"type":"object","properties":{}}' } }],
                     }),
                     { status: 200 },
                 ),
@@ -119,25 +115,27 @@ describe('executeOpenaiCompat', () => {
 });
 
 describe('schema shape enforcement', () => {
-  it('rejects a partial result that used to pass the token check', async () => {
-    // {"summary":"x","ocr":null} satisfied the old check and reached the model
-    // as if it were evidence.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: JSON.stringify({ summary: 'x', ocr: null }) } }],
-        }),
-      })),
-    );
-    await expect(
-      executeOpenaiCompat({
-        imageSource: 'https://example.com/a.png',
-        imageKind: 'remote',
-        timeoutMs: 1000,
-        settings: { apiKey: 'k', baseUrl: 'https://api.example.com', model: 'm' },
-      }),
-    ).rejects.toThrow(/does not match the vision schema \(missing: ocr, ocr.full_text/);
-  });
+    it('rejects a partial result that used to pass the token check', async () => {
+        // {"summary":"x","ocr":null} satisfied the old check and reached the model
+        // as if it were evidence.
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => ({
+                ok: true,
+                json: async () => ({
+                    choices: [
+                        { message: { content: JSON.stringify({ summary: 'x', ocr: null }) } },
+                    ],
+                }),
+            })),
+        );
+        await expect(
+            executeOpenaiCompat({
+                imageSource: 'https://example.com/a.png',
+                imageKind: 'remote',
+                timeoutMs: 1000,
+                settings: { apiKey: 'k', baseUrl: 'https://api.example.com', model: 'm' },
+            }),
+        ).rejects.toThrow(/does not match the vision schema \(missing: ocr, ocr.full_text/);
+    });
 });

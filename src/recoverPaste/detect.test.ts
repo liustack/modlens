@@ -30,10 +30,7 @@ describe('harness detection (process ancestry)', () => {
     it('ignores free-text arguments beyond the leading tokens', () => {
         const ps = psTable([
             [100, 1, '/opt/homebrew/bin/fish'],
-            [
-                200, 100,
-                'sometool serve --flag a b c d e f "please check the pi and opencode docs"',
-            ],
+            [200, 100, 'sometool serve --flag a b c d e f "please check the pi and opencode docs"'],
             [300, 200, 'node dist/main.js recover-paste'],
         ]);
         expect(harnessFromPsTable(ps, 300)).toBeNull();

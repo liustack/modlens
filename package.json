@@ -13,7 +13,7 @@
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "lint": "biome check src scripts",
-    "format": "biome format --write src scripts",
+    "format": "biome check --write src scripts",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm build",
     "docs:list": "node scripts/docs-list.js"

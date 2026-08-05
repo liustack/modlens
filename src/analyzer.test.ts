@@ -71,9 +71,7 @@ describe('provider subprocess handling', () => {
     }, 30_000);
 
     it('still reports a non-zero exit with its stderr', async () => {
-        const { bin, image } = fakeProvider(
-            '#!/bin/sh\necho "boom" >&2\nsleep 30 &\nexit 3\n',
-        );
+        const { bin, image } = fakeProvider('#!/bin/sh\necho "boom" >&2\nsleep 30 &\nexit 3\n');
 
         await expect(
             analyzeImage({ input: image, providerBin: bin, timeoutMs: 20_000, config: {} }),

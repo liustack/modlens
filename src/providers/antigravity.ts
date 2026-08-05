@@ -5,8 +5,8 @@ import { buildVisionPrompt } from '../prompt.ts';
 import { visionResultSchemaJson } from '../schema.ts';
 import { parseJsonLoose, tryParseJson } from '../util/json.ts';
 import type {
-    ProviderFailureContext,
     BuildProviderInvocationOptions,
+    ProviderFailureContext,
     ProviderInvocation,
     ProviderParsedOutput,
     VisionProvider,
@@ -141,7 +141,7 @@ export function describeAntigravityFailure(context: ProviderFailureContext): str
     ) {
         return [
             'Antigravity CLI cannot read its stored login token.',
-            "On Linux this usually means the OS keyring is locked, which is normal for headless sessions (agents, cron, systemd, SSH without a desktop login). agy then reports it as being signed out and tries a browser sign-in that cannot complete without a display. Unlock the keyring, or run modlens from a desktop session, or sign in again with `agy`.",
+            'On Linux this usually means the OS keyring is locked, which is normal for headless sessions (agents, cron, systemd, SSH without a desktop login). agy then reports it as being signed out and tries a browser sign-in that cannot complete without a display. Unlock the keyring, or run modlens from a desktop session, or sign in again with `agy`.',
             SWITCH_HINT,
         ].join('\n\n');
     }

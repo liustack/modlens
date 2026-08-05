@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-    buildClaudeCliInvocation,
-    parseClaudeCliOutput,
-} from './claudeCli.ts';
 import { VISION_RESULT_SCHEMA } from '../schema.ts';
+import { buildClaudeCliInvocation, parseClaudeCliOutput } from './claudeCli.ts';
 
 describe('buildClaudeCliInvocation', () => {
     it('builds a Read-only claude print invocation with json schema', () => {

@@ -4,14 +4,14 @@ import * as path from 'path';
 import {
     defaultProviderName,
     loadConfigFile,
-    resolveProviderSettings,
     type ModlensConfig,
+    resolveProviderSettings,
 } from './config.ts';
 import {
-    resolveProvider,
     type ProviderFailureContext,
     type ProviderInvocation,
     type ProviderParsedOutput,
+    resolveProvider,
 } from './providers/index.ts';
 
 export interface AnalyzeOptions {
@@ -97,7 +97,9 @@ export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResu
         );
         parsed = provider.parseOutput(commandResult.stdout);
     } else {
-        throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
+        throw new Error(
+            `Provider ${provider.name} implements neither execute nor buildInvocation.`,
+        );
     }
 
     return {
@@ -211,7 +213,8 @@ export function runCommand(
             if (code !== 0) {
                 // The provider knows what its own error output means; a bare
                 // exit code tells the user nothing actionable (issue #3).
-                const explained = describeFailure?.({ stdout, stderr, code, startedAt: runStartedAt }) ?? null;
+                const explained =
+                    describeFailure?.({ stdout, stderr, code, startedAt: runStartedAt }) ?? null;
                 reject(
                     new Error(
                         explained ??

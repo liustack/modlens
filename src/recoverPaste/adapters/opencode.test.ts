@@ -28,11 +28,15 @@ describe('escapeLikePattern', () => {
 // skipped on older runtimes rather than crashing the suite. The recovery path
 // itself degrades gracefully there: opencode surfaces as a "Blocked:" note while
 // the JSONL harnesses keep working, which the index suite covers.
-let DatabaseSync: (new (p: string) => {
-    exec: (sql: string) => void;
-    prepare: (sql: string) => { run: (...params: unknown[]) => void };
-    close: () => void;
-}) | undefined;
+let DatabaseSync:
+    | (new (
+          p: string,
+      ) => {
+          exec: (sql: string) => void;
+          prepare: (sql: string) => { run: (...params: unknown[]) => void };
+          close: () => void;
+      })
+    | undefined;
 try {
     ({ DatabaseSync } = createRequire(import.meta.url)('node:sqlite'));
 } catch {
@@ -62,7 +66,11 @@ describe.skipIf(!DatabaseSync)('opencode harness support', () => {
         timeMs: number,
         payload: string,
     ) {
-        db.prepare('INSERT OR IGNORE INTO session VALUES (?, ?, ?)').run(`ses_${n}`, slug, directory);
+        db.prepare('INSERT OR IGNORE INTO session VALUES (?, ?, ?)').run(
+            `ses_${n}`,
+            slug,
+            directory,
+        );
         db.prepare(`INSERT INTO message VALUES (?, ?, ?, '{"role":"user"}')`).run(
             `msg_${n}`,
             `ses_${n}`,
@@ -116,7 +124,14 @@ describe.skipIf(!DatabaseSync)('opencode harness support', () => {
         const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc-'));
         const cwd = '/tmp/proj';
         const db = openDb(home);
-        insertImage(db, 1, 'my-session', path.resolve(cwd), Date.parse('2026-08-03T06:00:00.000Z'), 'oc-image');
+        insertImage(
+            db,
+            1,
+            'my-session',
+            path.resolve(cwd),
+            Date.parse('2026-08-03T06:00:00.000Z'),
+            'oc-image',
+        );
         db.close();
 
         withHome(home, () => {
@@ -125,7 +140,11 @@ describe.skipIf(!DatabaseSync)('opencode harness support', () => {
             expect(fs.readFileSync(result.images[0].path).toString()).toBe('oc-image');
             expect(result.images[0].filename).toBe('f1.png');
 
-            const bySlug = recoverPastedImages({ cwd, session: 'my-session', outDir: path.join(home, 'out') });
+            const bySlug = recoverPastedImages({
+                cwd,
+                session: 'my-session',
+                outDir: path.join(home, 'out'),
+            });
             expect(bySlug.harness).toBe('opencode');
         });
     });
@@ -136,7 +155,14 @@ describe.skipIf(!DatabaseSync)('opencode harness support', () => {
         const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc-dir-'));
         const root = '/tmp/repo';
         const db = openDb(home);
-        insertImage(db, 1, 's-sub', path.join(path.resolve(root), 'assets'), 1_000, 'launched-in-subdir');
+        insertImage(
+            db,
+            1,
+            's-sub',
+            path.join(path.resolve(root), 'assets'),
+            1_000,
+            'launched-in-subdir',
+        );
         db.close();
 
         withHome(home, () => {
@@ -148,7 +174,9 @@ describe.skipIf(!DatabaseSync)('opencode harness support', () => {
                 cwd: path.join(root, 'assets', 'icons'),
                 outDir: path.join(home, 'out'),
             });
-            expect(fs.readFileSync(fromDeeper.images[0].path).toString()).toBe('launched-in-subdir');
+            expect(fs.readFileSync(fromDeeper.images[0].path).toString()).toBe(
+                'launched-in-subdir',
+            );
         });
     });
 
@@ -177,7 +205,14 @@ describe.skipIf(!DatabaseSync)('opencode harness support', () => {
             imageLine('claude-older', '2026-08-03T01:00:00.000Z'),
         );
         const db = openDb(home);
-        insertImage(db, 1, 's1', path.resolve(cwd), Date.parse('2026-08-03T09:00:00.000Z'), 'oc-newer');
+        insertImage(
+            db,
+            1,
+            's1',
+            path.resolve(cwd),
+            Date.parse('2026-08-03T09:00:00.000Z'),
+            'oc-newer',
+        );
         db.close();
 
         withHome(home, () => {

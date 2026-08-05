@@ -1,6 +1,6 @@
 import type { ProviderSettings } from '../config.ts';
-import { antigravityCliProvider } from './antigravity.ts';
 import { anthropicApiProvider } from './anthropicApi.ts';
+import { antigravityCliProvider } from './antigravity.ts';
 import { claudeCliProvider } from './claudeCli.ts';
 import { geminiApiProvider } from './geminiApi.ts';
 import { openaiCompatProvider } from './openaiCompat.ts';

@@ -71,9 +71,7 @@ export async function executeGeminiApi(
         usageMetadata?: unknown;
     };
 
-    const text = payload.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text ?? '')
-        .join('');
+    const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('');
     if (!text) {
         throw new Error('Gemini API returned no text candidate.');
     }

@@ -25,7 +25,10 @@ interface SqliteRow {
 function opencodeQuery(dbPath: string, cwd: string, sessionId?: string): SqliteRow[] {
     // node:sqlite ships with Node 22.5+. Loaded lazily so the other adapters
     // keep working on older runtimes.
-    let DatabaseSync: new (p: string, o?: { readOnly?: boolean }) => {
+    let DatabaseSync: new (
+        p: string,
+        o?: { readOnly?: boolean },
+    ) => {
         prepare: (sql: string) => { all: (...params: unknown[]) => unknown[] };
         close: () => void;
     };

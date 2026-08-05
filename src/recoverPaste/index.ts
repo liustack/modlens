@@ -39,7 +39,10 @@ export type {
 
 /** Last-resort extension from the media type itself, e.g. image/heic -> heic. */
 function extensionFromMediaType(mediaType: string): string {
-    const subtype = mediaType.split('/')[1]?.split('+')[0]?.replace(/[^a-z0-9]/gi, '');
+    const subtype = mediaType
+        .split('/')[1]
+        ?.split('+')[0]
+        ?.replace(/[^a-z0-9]/gi, '');
     return subtype ? subtype.toLowerCase() : 'bin';
 }
 

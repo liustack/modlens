@@ -20,7 +20,12 @@ afterEach(() => {
 describe('executeGeminiApi', () => {
     it('demands an api key up front', async () => {
         await expect(
-            executeGeminiApi({ imageSource: tmpImage, imageKind: 'local', timeoutMs: 5000, settings: {} }),
+            executeGeminiApi({
+                imageSource: tmpImage,
+                imageKind: 'local',
+                timeoutMs: 5000,
+                settings: {},
+            }),
         ).rejects.toThrow('GEMINI_API_KEY');
     });
 
