@@ -14,7 +14,7 @@ import {
     setConfigValue,
 } from './config.ts';
 import { listProviders } from './providers/index.ts';
-import { recoverPastedImages } from './recoverPaste.ts';
+import { recoverPastedImages } from './recoverPaste/index.ts';
 
 const program = new Command();
 

@@ -2,14 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-    claudeProjectSlug,
-    escapeLikePattern,
-    extractUserImages,
-    harnessFromPsTable,
-    piSessionSlug,
-    recoverPastedImages,
-} from './recoverPaste.ts';
+import { claudeProjectSlug, extractUserImages, piSessionSlug, recoverPastedImages } from './index.ts';
 
 // The suite itself runs inside a real harness (its process ancestry and env
 // would trip detection), so default every test to unscoped scanning and let
@@ -47,20 +40,6 @@ function imageLine(data: string, timestamp: string, mediaType = 'image/png'): st
     });
 }
 
-describe('slug encoding', () => {
-    it('derives claude project slugs (slashes and dots become dashes)', () => {
-        expect(claudeProjectSlug('/Users/leon/projects/liustack-web')).toBe(
-            '-Users-leon-projects-liustack-web',
-        );
-        expect(claudeProjectSlug('/Users/leon/.claude')).toBe('-Users-leon--claude');
-    });
-
-    it('derives pi session slugs (leading slash stripped, wrapped in double dashes)', () => {
-        expect(piSessionSlug('/tmp/proj')).toBe('--tmp-proj--');
-        expect(piSessionSlug('/Users/leon/my-app')).toBe('--Users-leon-my-app--');
-    });
-});
-
 function piImageLine(data: string, timestamp: string, mimeType = 'image/png'): string {
     return JSON.stringify({
         type: 'message',
@@ -74,6 +53,20 @@ function piImageLine(data: string, timestamp: string, mimeType = 'image/png'): s
         },
     });
 }
+
+describe('slug encoding', () => {
+    it('derives claude project slugs (slashes and dots become dashes)', () => {
+        expect(claudeProjectSlug('/Users/leon/projects/liustack-web')).toBe(
+            '-Users-leon-projects-liustack-web',
+        );
+        expect(claudeProjectSlug('/Users/leon/.claude')).toBe('-Users-leon--claude');
+    });
+
+    it('derives pi session slugs (leading slash stripped, wrapped in double dashes)', () => {
+        expect(piSessionSlug('/tmp/proj')).toBe('--tmp-proj--');
+        expect(piSessionSlug('/Users/leon/my-app')).toBe('--Users-leon-my-app--');
+    });
+});
 
 describe('extractUserImages + recoverPastedImages', () => {
     it('extracts user image blocks in order, skipping assistant images and junk lines', () => {
@@ -248,185 +241,7 @@ describe('pi harness support', () => {
     });
 });
 
-describe('opencode harness support', async () => {
-    const { recoverPastedImages: recover } = await import('./recoverPaste.ts');
-    const { createRequire } = await import('module');
-    const nodeRequire = createRequire(import.meta.url);
-    const { DatabaseSync } = nodeRequire('node:sqlite');
-
-    function openDb(home: string) {
-        const dir = path.join(home, '.local', 'share', 'opencode');
-        fs.mkdirSync(dir, { recursive: true });
-        const db = new DatabaseSync(path.join(dir, 'opencode.db'));
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS session (id TEXT PRIMARY KEY, slug TEXT, directory TEXT);
-            CREATE TABLE IF NOT EXISTS message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
-            CREATE TABLE IF NOT EXISTS part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT);
-        `);
-        return db;
-    }
-
-    function insertImage(
-        db: InstanceType<typeof DatabaseSync>,
-        n: number,
-        slug: string,
-        directory: string,
-        timeMs: number,
-        payload: string,
-    ) {
-        db.prepare('INSERT OR IGNORE INTO session VALUES (?, ?, ?)').run(`ses_${n}`, slug, directory);
-        db.prepare(`INSERT INTO message VALUES (?, ?, ?, '{"role":"user"}')`).run(
-            `msg_${n}`,
-            `ses_${n}`,
-            timeMs,
-        );
-        db.prepare('INSERT INTO part VALUES (?, ?, ?, ?, ?)').run(
-            `prt_${n}`,
-            `msg_${n}`,
-            `ses_${n}`,
-            timeMs,
-            JSON.stringify({
-                type: 'file',
-                mime: 'image/png',
-                filename: `f${n}.png`,
-                url: `data:image/png;base64,${Buffer.from(payload).toString('base64')}`,
-            }),
-        );
-    }
-
-    function withHome<T>(home: string, run: () => T): T {
-        const realHome = process.env.HOME;
-        process.env.HOME = home;
-        try {
-            return run();
-        } finally {
-            process.env.HOME = realHome;
-            fs.rmSync(home, { recursive: true, force: true });
-        }
-    }
-
-    it('recovers file parts by directory and by session, reporting the original filename', () => {
-        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc-'));
-        const cwd = '/tmp/proj';
-        const db = openDb(home);
-        insertImage(db, 1, 'my-session', path.resolve(cwd), Date.parse('2026-08-03T06:00:00.000Z'), 'oc-image');
-        db.close();
-
-        withHome(home, () => {
-            const result = recover({ cwd, outDir: path.join(home, 'out') });
-            expect(result.harness).toBe('opencode');
-            expect(fs.readFileSync(result.images[0].path).toString()).toBe('oc-image');
-            expect(result.images[0].filename).toBe('f1.png');
-
-            const bySlug = recover({ cwd, session: 'my-session', outDir: path.join(home, 'out') });
-            expect(bySlug.harness).toBe('opencode');
-        });
-    });
-
-    it('matches sessions across the repo-root/subdirectory gap in both directions', () => {
-        // opencode records session.directory where it was launched, but runs
-        // bash at the repo root; recovery must survive the mismatch.
-        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc-dir-'));
-        const root = '/tmp/repo';
-        const db = openDb(home);
-        insertImage(db, 1, 's-sub', path.join(path.resolve(root), 'assets'), 1_000, 'launched-in-subdir');
-        db.close();
-
-        withHome(home, () => {
-            const fromRoot = recover({ cwd: root, outDir: path.join(home, 'out') });
-            expect(fromRoot.harness).toBe('opencode');
-            expect(fs.readFileSync(fromRoot.images[0].path).toString()).toBe('launched-in-subdir');
-
-            const fromDeeper = recover({
-                cwd: path.join(root, 'assets', 'icons'),
-                outDir: path.join(home, 'out'),
-            });
-            expect(fs.readFileSync(fromDeeper.images[0].path).toString()).toBe('launched-in-subdir');
-        });
-    });
-
-    it('scopes recovery to the single session owning the newest image', () => {
-        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc-scope-'));
-        const cwd = '/tmp/proj';
-        const db = openDb(home);
-        insertImage(db, 1, 's-old', path.resolve(cwd), 1_000, 'old-session-image');
-        insertImage(db, 2, 's-new', path.resolve(cwd), 2_000, 'new-session-image');
-        db.close();
-
-        withHome(home, () => {
-            const result = recover({ cwd, count: 5, outDir: path.join(home, 'out') });
-            expect(result.images).toHaveLength(1);
-            expect(fs.readFileSync(result.images[0].path).toString()).toBe('new-session-image');
-        });
-    });
-
-    it('outranks older jsonl images when its part is newest', () => {
-        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-oc2-'));
-        const cwd = '/tmp/proj';
-        const claudeDir = path.join(home, '.claude', 'projects', '-tmp-proj');
-        fs.mkdirSync(claudeDir, { recursive: true });
-        fs.writeFileSync(
-            path.join(claudeDir, 'c.jsonl'),
-            imageLine('claude-older', '2026-08-03T01:00:00.000Z'),
-        );
-        const db = openDb(home);
-        insertImage(db, 1, 's1', path.resolve(cwd), Date.parse('2026-08-03T09:00:00.000Z'), 'oc-newer');
-        db.close();
-
-        withHome(home, () => {
-            const result = recover({ cwd, outDir: path.join(home, 'out') });
-            expect(result.harness).toBe('opencode');
-            expect(fs.readFileSync(result.images[0].path).toString()).toBe('oc-newer');
-        });
-    });
-});
-
-describe('harness detection', () => {
-    function psTable(rows: Array<[number, number, string]>): string {
-        return rows.map(([pid, ppid, command]) => ` ${pid} ${ppid} ${command}`).join('\n');
-    }
-
-    it('finds the nearest harness ancestor by executable basename', () => {
-        const ps = psTable([
-            [100, 1, '/usr/local/bin/node --no-warnings /Users/x/.claude/local/claude'],
-            [200, 100, '/bin/zsh -c modlens'],
-            [300, 200, 'node /Users/x/projects/modlens/dist/main.js recover-paste'],
-        ]);
-        expect(harnessFromPsTable(ps, 300)).toBe('claude-code');
-    });
-
-    it('resolves nesting to the innermost harness', () => {
-        // opencode launched from inside a Claude Code bash: opencode is nearer.
-        const ps = psTable([
-            [100, 1, 'node /Users/x/.claude/local/claude'],
-            [200, 100, '/bin/zsh -c "opencode run ..."'],
-            [300, 200, '/Users/x/.cache/opencode/bin/opencode run analyze'],
-            [400, 300, '/bin/sh -c modlens'],
-            [500, 400, 'node /Users/x/modlens/dist/main.js recover-paste'],
-        ]);
-        expect(harnessFromPsTable(ps, 500)).toBe('opencode');
-    });
-
-    it('ignores free-text arguments beyond the leading tokens', () => {
-        const ps = psTable([
-            [100, 1, '/opt/homebrew/bin/fish'],
-            [
-                200, 100,
-                'sometool serve --flag a b c d e f "please check the pi and opencode docs"',
-            ],
-            [300, 200, 'node dist/main.js recover-paste'],
-        ]);
-        expect(harnessFromPsTable(ps, 300)).toBeNull();
-    });
-
-    it('returns null for terminals with no harness ancestor', () => {
-        const ps = psTable([
-            [100, 1, '/opt/homebrew/bin/fish'],
-            [300, 100, 'node dist/main.js recover-paste'],
-        ]);
-        expect(harnessFromPsTable(ps, 300)).toBeNull();
-    });
-
+describe('harness detection scoping', () => {
     it('scopes recovery to the detected harness even when another store has newer images', () => {
         const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-scope-'));
         const cwd = '/tmp/proj';
@@ -521,13 +336,6 @@ describe('harness detection', () => {
 });
 
 describe('cross-project safety', () => {
-    it('escapes SQL wildcards so a path with _ cannot match another project', () => {
-        // LIKE reads _ as "any character", so /tmp/proj_1 used to match projA1.
-        expect(escapeLikePattern('/tmp/proj_1')).toBe('/tmp/proj\\_1');
-        expect(escapeLikePattern('/tmp/100%/x')).toBe('/tmp/100\\%/x');
-        expect(escapeLikePattern('/tmp/plain')).toBe('/tmp/plain');
-    });
-
     it('rejects a transcript whose recorded cwd belongs to another project', () => {
         // /tmp/project.alpha and /tmp/project-alpha share one Claude slug.
         const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modlens-collide-'));
@@ -590,21 +398,5 @@ describe('cross-project safety', () => {
             process.env.HOME = realHome;
             fs.rmSync(home, { recursive: true, force: true });
         }
-    });
-
-    it('only reads the executable name from process ancestry', () => {
-        // A command that merely mentions "pi" in its arguments is not Pi.
-        const ps = [
-            ' 100 1 /opt/homebrew/bin/fish',
-            ' 200 100 sometool serve --note "check the pi docs" pi',
-            ' 300 200 node /x/dist/main.js recover-paste',
-        ].join('\n');
-        expect(harnessFromPsTable(ps, 300)).toBeNull();
-
-        const real = [
-            ' 100 1 /usr/local/bin/node /Users/x/.npm/bin/pi',
-            ' 300 100 node /x/dist/main.js recover-paste',
-        ].join('\n');
-        expect(harnessFromPsTable(real, 300)).toBe('pi');
     });
 });
