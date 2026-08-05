@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+A code-review pass. Two user-facing bugs, a stack of doc corrections, and the tooling a public repo is expected to carry.
+
+- `config show` prints the effective config now, merging environment variables over the file and tagging each value file or env. Reading only the file hid keys set through `GEMINI_API_KEY` and the other bound vars, so the value modlens actually used never appeared.
+- Local image paths containing `#` or `?` keep their real extension. Routing them through `new URL()` read the character as a fragment or query and dropped the extension, mislabelling the type as JPEG.
+- The disclaimer no longer contradicts the MIT license it ships beside. It withholds warranty and endorsement without withholding the commercial-use right MIT grants, and points at the upstream engines' own terms.
+- Docs caught up with the code. Both READMEs gained `--provider-bin`, `--workdir`, a per-provider default-model table, a full `recover-paste` flag table, and the `meta` output fields, with `MODLENS_HARNESS` and `--out-dir` written up in troubleshooting. The anthropic recipe warns that `ANTHROPIC_BASE_URL` can silently reroute a vision request to a text-only gateway. AGENTS.md drops three claims that had gone stale.
+- Internals, all behavior-preserving: the duplicated JSON helpers (parse, extract, truncate) collapsed into one `util/json` module, and the 710-line `recoverPaste` split into per-harness modules. An always-true branch and a few lint findings cleared.
+- Tooling: Biome for formatting and linting on the repo's 4-space style, a Node 18/20/22 CI matrix that skips the `node:sqlite` tests where the module is unavailable, `@vitest/coverage-v8` with a `coverage` script, tests for the CLI assembly, and a tag-triggered release workflow that publishes with provenance. Adds the collaboration files a public repo expects: CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue and pull-request templates, and Dependabot.
+- The Chinese README's plug now invites readers to the WeChat public account rather than installing the liustack skills.
+- `release.mjs` matches the CHANGELOG again: version dots are escaped literally and the section ends at end of file, so the newest entry (and versions like `2.8.0`) match instead of being missed.
+
 ## 2.8.0 - 2026-08-06
 
 - README rebuilt against how widely used projects actually write theirs: install command inside the first screen, a nav row and badges in the hero, short scannable highlights, and roughly 1,000 words instead of a long read. Harness specifics and security detail moved into `docs/harness-setup.md` and `docs/security.md`, with a Documentation table pointing at them.
