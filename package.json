@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",
-    "@types/node": "^22.19.7",
+    "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^3.2.7",
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
