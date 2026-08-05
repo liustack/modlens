@@ -101,6 +101,8 @@ Structure is enforced by schema on antigravity-cli and claude-cli (`--json-schem
 
 ## Failure Handling
 
+Every error this CLI prints is catalogued with its cause and fix in the project's `docs/troubleshooting.md`. Read the message first: most of them already name the fix.
+
 - `Provider CLI not found`: Antigravity CLI is not installed. Install it, or switch provider: `-p gemini-api`.
 - Missing key errors name the exact env var and `config set` command to run. Relay that to the user.
 - `does not match the vision schema` on the openai route: retry once, then switch to `-p gemini-api` or `-p anthropic` for enforced schemas.

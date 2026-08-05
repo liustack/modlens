@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.7 - 2026-08-05
+
+- README: leads with a scannable feature block (paste support, evidence rather than a description, honest uncertainty, no model swap, zero-key start, four harnesses) and states requirements. Adds a comparison against swapping in a multimodal model and against vision MCP servers, our own weaknesses included.
+- New `docs/troubleshooting.md`: every error this CLI prints, with cause and fix, linked from the README and the skill.
+- The ASCII flow diagram is now a real illustration. Its alignment had needed repair across several releases, which is a poor trade for a picture.
+- The Gemini CLI era research doc is marked historical so it is not read as current design.
+
 ## 2.7.6 - 2026-08-05
 
 - `config init` now writes only the shape (`{"provider": "", "providers": {}}`) instead of all five providers with their fields pre-filled. Baked-in defaults in a config file silently outrank later changes to those defaults, and the placeholders hid the one decision that matters. The command prints what can be set instead.

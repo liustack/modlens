@@ -6,6 +6,11 @@ read_when:
   - Verifying compatibility with Claude Code and Gemini CLI
 ---
 
+> **HISTORICAL.** Written in the Gemini CLI era, before that free tier was shut
+> down in June 2026 and ModLens moved to Antigravity CLI. Kept for the reasoning
+> behind the skill-trigger design. For how things work now, read the README and
+> `troubleshooting.md`.
+
 # Research Notes: Gemini CLI + Claude Code Skills
 
 Date: 2026-02-22

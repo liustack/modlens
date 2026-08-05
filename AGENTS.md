@@ -66,7 +66,7 @@ modlens config show
 
 1. Operational docs use front-matter metadata (`summary`, `read_when`).
 2. Before creating a new doc, run `pnpm docs:list` to review the existing index.
-3. Existing docs: `commit`, `testing`, `research-gemini-claude-skills` (historical, Gemini CLI era).
+3. Existing docs: `troubleshooting` (every error this CLI prints, with causes and fixes), `testing`, `commit`, `research-gemini-claude-skills` (historical, Gemini CLI era).
 
 ## .gitignore must include
 
