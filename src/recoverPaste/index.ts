@@ -12,9 +12,9 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { claudeAdapter, claudeExtractLine, claudeProjectSlug } from './adapters/claude.ts';
+import { claudeAdapter, claudeExtractLine } from './adapters/claude.ts';
 import { opencodeAdapter, opencodeSourceFor } from './adapters/opencode.ts';
-import { piAdapter, piExtractLine, piSessionSlug } from './adapters/pi.ts';
+import { piAdapter, piExtractLine } from './adapters/pi.ts';
 import { detectHarness } from './detect.ts';
 import { jsonlSource } from './jsonl.ts';
 import type {

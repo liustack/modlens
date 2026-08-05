@@ -74,7 +74,7 @@ describe('executeOpenaiCompat', () => {
                         choices: [
                             {
                                 message: {
-                                    content: '```json\n' + JSON.stringify(structured) + '\n```',
+                                    content: `\`\`\`json\n${JSON.stringify(structured)}\n\`\`\``,
                                 },
                             },
                         ],
