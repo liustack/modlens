@@ -1,0 +1,49 @@
+name: release
+
+# Publishes to npm when a v* tag is pushed. The tag is normally created by
+# scripts/release.mjs (`pnpm release <version>`), which runs the same guards
+# locally and pushes the tag. This workflow re-runs the guards in CI, then
+# publishes with provenance.
+#
+# PREREQUISITE that cannot be configured in this file: npm-side trusted
+# publishing. On npmjs.com, open the @liustack/modlens package settings ->
+# "Trusted publishers" and add this repository and this workflow
+# (liustack/modlens, .github/workflows/release.yml). That lets npm mint a
+# short-lived credential from the OIDC token this workflow requests, so no
+# long-lived NPM_TOKEN secret is needed. Until it is set up, `npm publish
+# --provenance` will fail with an authentication error. The workflow side of the
+# handshake is the `id-token: write` permission below and an npm new enough to
+# support OIDC trusted publishing (installed explicitly).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  # Required for provenance and OIDC trusted publishing.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      # OIDC trusted publishing and --provenance need npm 11.5.1+, newer than
+      # what Node 22 ships with.
+      - run: npm install -g npm@latest
+      - run: pnpm install --frozen-lockfile
+      # Same guards release.mjs runs, before anything irreversible.
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: npm publish --provenance --access public
