@@ -11,7 +11,7 @@
 
 DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，要说唯一的缺点就是没有多模态。不仅 DeepSeek-V4-Flash，只要是纯文本语言模型，跑在 Codex、Claude Code、Pi Agent、OpenClaw 中，都有这个问题。
 
-ModLens 用最轻量级方案解决这个问题。ModLens 不会入侵你的配置，也不会给你添加本地代理，ModLens 只是一个视觉外挂，有 cli 或 skill 两种模式。ModLens 能产出结构化的视觉证据：文字、版面、区块、实体、关系、视觉线索。ModLens 由 Antigravity [Antigravity CLI](https://antigravity.google)（`agy`）驱动，而 Antigravity 的视觉由免费额度的 Gemini 3.6 Flash 驱动。众所周知，Gemini 的识图能力，连 Fable 5 都吊打。原理如下：
+ModLens 用最轻量级方案解决这个问题。ModLens 不会入侵你的配置，也不会给你添加本地代理，ModLens 只是一个视觉外挂，有 cli 或 skill 两种模式。ModLens 能产出结构化的视觉证据：文字、版面、区块、实体、关系、视觉线索。ModLens 由 [Antigravity CLI](https://antigravity.google)（`agy`）驱动，而 Antigravity 的视觉由免费额度的 Gemini 3.6 Flash 驱动。Gemini 的识图能力，连 Fable 5 都吊打。原理如下：
 
 ```text
 Agent Harness 中的纯文本模型 ──▶ modlens skill（遇到图片自动触发）
@@ -23,9 +23,30 @@ Agent Harness 中的纯文本模型 ──▶ modlens skill（遇到图片自动
            结构化 JSON 证据 ──▶ 模型带着视力回答
 ```
 
+## 你可以直接粘贴图片
+
+纯文本模型想看图，主流方案是装一个识图 MCP server。翻开它们的文档，你会看到一句坦白：接不住粘贴。原因很简单，粘贴这个动作从头到尾都是客户端自己办的，图一贴进对话框，客户端就把它转码直接发给模型了，MCP server 连插手的机会都没有。文档给的建议通常是：先把图存到本地某个目录，再在对话里报一句文件名或路径。
+
+ModLens 接住了这一下。你粘贴，纯文本模型看不见（网关把图剥成一个不带路径的占位符），skill 自动从本地的会话存储里把图片字节捞回来落成文件，再喂给视觉引擎。模型拿到的是完整图片内容，不是一句「麻烦告诉我路径」。整个过程你不用做任何事。
+
+四家主流 harness 都在真机上验证过：Claude Code 用注入的会话 ID 精确定位到当前会话，Pi 的存储路数和它一样，OpenCode 换成了 SQLite，Codex 的粘贴图本来就带临时文件路径，skill 走路径标签这条路，不会误用恢复逻辑。`recover-paste` 会先判断自己正跑在哪一家宿主里（沿进程祖先链往上查，再核对环境变量指纹），只读那一家的存储，别家的旧会话没机会冒充。
+
+据我们所知，还没有第二个工具接住粘贴这一下。别的方案是先存文件、再报路径。ModLens 是你直接粘贴。
+
 ## 快速开始
 
-**1. 安装 Antigravity CLI 并登录**（一次性）：
+**1. 选一条路，把视觉引擎接好**（一次性，选一条就好）：
+
+**推荐：领一个免费 Gemini key。** 三分钟，不要信用卡，直连模型 5-10 秒出结果（agy 要 15-40 秒），额度也没那么容易撞墙。去 [aistudio.google.com](https://aistudio.google.com) 拿到 key，然后：
+
+```bash
+modlens config set gemini-api.apiKey <key>
+modlens config set provider gemini-api
+```
+
+嫌敲命令麻烦？装完下面第 2 步的 skill 后，直接跟你的 agent 说「帮我把 Gemini key 配进 modlens」，它会替你跑完这两行。
+
+**次选：不想注册、想立刻开跑，就直接用 Antigravity CLI。** 零 key，纯免费额度，但慢一些（15-40 秒），额度也紧，细节见下文「Provider 与配置」。
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
@@ -46,7 +67,7 @@ npx -y skills add liustack/modlens
 
 各家 harness 找 skill 的位置不一样：Claude Code 读 `~/.claude/skills/`，Codex 读 `~/.codex/skills/`，Pi 和 OpenCode 读 `~/.agents/skills/`。软链接在哪家都好使，把 skill 目录链一次，各家永远用最新版。
 
-**3. 用起来。** 在 cli 里粘贴个图片路径，随便问，skill 会自动触发。
+**3. 用起来。** 粘贴一张图（或者图片路径），随便问，skill 会自动触发。
 
 ## 看看效果
 
@@ -130,11 +151,13 @@ ModLens 内置五个视觉 provider，默认还是 `antigravity-cli`：零 key�
 
 | Provider | 需要什么 | 速度 | 说明 |
 | :-- | :-- | :-- | :-- |
-| `antigravity-cli`（默认） | `agy` 登录过 | 15-40 秒 | 免费额度，完整 agent 循环 |
-| `gemini-api` | 免费 AI Studio key | 5-10 秒 | 最快的免费路线，服务端强制 schema |
+| `antigravity-cli`（默认） | `agy` 登录过 | 15-40 秒 | 免费额度，完整 agent 循环，额度紧（见下文） |
+| `gemini-api`（推荐） | 免费 AI Studio key | 5-10 秒 | 最快的免费路线，服务端强制 schema |
 | `openai` | baseUrl + apiKey + model | 看端点 | 任何 OpenAI 兼容的多模态端点（qwen-vl、GLM 等） |
 | `anthropic` | `ANTHROPIC_API_KEY` | 几秒 | 默认 Claude Haiku，强制工具调用保 schema |
 | `claude-cli` | Claude Code 已登录 | 20-45 秒 | 零 key，吃你的 Claude 订阅额度，只放行 Read 工具 |
+
+`antigravity-cli` 免费，但两头都紧：慢（完整 agent 循环要 15-40 秒，`gemini-api` 直连只要 5-10 秒），额度也紧。2025 年 11 月刚上线时每天 250 次请求，12 月直接砍到每天 20 次，2026 年又改成一次性发放的周配额，用超了就得等下一个周期重置，我们实测撞过一次墙，提示是「94 小时后重置」。这份配额还是桌面应用、CLI、SDK 三头共用一个池子，用 subagent 并行跑消耗得更快。想稳定干活，还是建议换成 `gemini-api`。
 
 配置放在 `~/.modlens/config.json`，环境变量能盖过它（`GEMINI_API_KEY`、`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`ANTHROPIC_API_KEY`），CLI 参数最大。
 
@@ -145,11 +168,13 @@ modlens config show                          # key 打码显示
 modlens config set provider gemini-api       # 换默认 provider
 ```
 
-免费 Gemini key 去 [aistudio.google.com](https://aistudio.google.com) 领，三分钟，不要信用卡。嫌麻烦就直接跟你的 agent 说一句「帮我把 Gemini key 配进 modlens」，让它自己跑命令。
+免费 Gemini key 去 [aistudio.google.com](https://aistudio.google.com) 领，三分钟，不要信用卡。
+
+嫌自己敲命令麻烦？装完 skill 之后这些配置全部能甩给 agent：问一句「modlens 怎么配置」「帮我把 Gemini key 配进 modlens」「把默认 provider 切成 claude-cli」，agent 会照着 skill 自带的配置手册，自己跑 `modlens config set` 这些命令，不用你查文档，也不用你记参数。
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
-Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)配好：它的 `models.json` 把 deepseek-v4-flash 声明成纯文本（`input_modalities: ["text"]`），这一行就是打通下面整条链路的钥匙。
+Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)配好：它的 `models.json` 把 deepseek-v4-flash 声明成纯文本（`input_modalities: ["text"]`），这一行就是解锁下面整条链路的钥匙。
 
 有个坑要注意：声明纯文本之后，Codex TUI 会**直接拦下 Ctrl+V 粘贴图片**（报错 `Model deepseek-v4-flash does not support image inputs`），闸门卡在输入框那一层，图片压根到不了消息里。能用的招数有两个，都拿 deepseek-v4-flash 端到端验证过：
 
@@ -160,7 +185,15 @@ Codex 只认 Responses API，DeepSeek 官方端点原生支持。先照着[官�
 
 不用任何配置：把图片文件拖进终端，或手打路径，skill 直接接手。
 
-粘贴要多说两句。走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型时，Claude Code 粘贴的图片从不写普通临时文件，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。但图片字节没有蒸发：Claude Code 在网关看到消息之前，就把每条用户消息（含图片）原样写进了本地会话记录。`modlens recover-paste` 干的就是这件事：从会话记录里把最近粘贴的图捞回来，落成真实文件路径，直接喂给 `modlens -i`。skill 看到占位符会自动跑这一步。已在真实的 DeepSeek 网关 Claude Code 会话里端到端验证：粘贴一张图，模型只看到占位符，按会话 ID 捞回文件，带着完整图片内容回答。会话记录本来就是一个会话一个文件。skill 可以通过 `--session` 传入精确会话（Claude Code 从 v2.1.9 起会把 `${CLAUDE_SESSION_ID}` 替换进 skill 文本），不传时按消息时间戳挑「持有最新粘贴图」的那份，两条路都不怕同项目并发多开。[Pi](https://github.com/earendil-works/pi) 的会话存储和它同构（`~/.pi/agent/sessions/`，图片以 base64 存 JSONL）。[OpenCode](https://github.com/sst/opencode) 换了个存法，图片以 data URL 塞进 SQLite（`~/.local/share/opencode/opencode.db`，读它需要 Node 22.5+ 的 node:sqlite）。`recover-paste` 会先搞清楚自己正跑在哪家宿主里（沿进程祖先链往上找，再核对 `CLAUDECODE`、`PI_CODING_AGENT`、`CODEX_THREAD_ID` 这些环境变量指纹），然后只读那一家的存储，别家的陈年会话再也没机会冒充。在 Claude Code 里还会直接用注入的会话 ID 精确定位，在 Codex 里则干脆拒绝执行并把你指回 path tag。实在识别不出来才退回按最新图片时间戳在三家赛跑。四家宿主全部活体验证过：Claude Code 靠注入的会话 ID 精确捞回粘贴，OpenCode 上 DeepSeek 全程自动触发 skill 跑完整条链路，Pi 只认自家存储不受别家污染，Codex 被拒之门外并指回 path tag。一句老实话：会话记录格式是这些工具的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
+粘贴要多说两句。走 `ANTHROPIC_BASE_URL` 网关跑纯文本模型时，Claude Code 粘贴的图片从不写普通临时文件，也没有声明模型无视觉的开关，粘贴的图要么变成一个不带路径的 `[Unsupported Image]` 占位符到达模型（DeepSeek 的 Anthropic 兼容端点这类宽容网关），要么直接把请求搞挂（[#62009](https://github.com/anthropics/claude-code/issues/62009)）。但图片字节没有蒸发：Claude Code 在网关看到消息之前，就把每条用户消息（含图片）原样写进了本地会话记录，`modlens recover-paste` 干的就是把它们捞回来、落成真实文件路径，直接喂给 `modlens -i`。skill 看到占位符会自动跑这一步。
+
+会话记录本来就是一个会话一个文件，skill 可以通过 `--session` 传入精确会话（Claude Code 从 v2.1.9 起会把 `${CLAUDE_SESSION_ID}` 替换进 skill 文本）。不传时按消息时间戳挑「持有最新粘贴图」的那份，两条路都不怕同项目并发多开。
+
+[Pi](https://github.com/earendil-works/pi) 的会话存储和它同构（`~/.pi/agent/sessions/`，图片以 base64 存 JSONL）。[OpenCode](https://github.com/sst/opencode) 换了个存法，图片以 data URL 塞进 SQLite（`~/.local/share/opencode/opencode.db`，读它需要 Node 22.5+ 的 node:sqlite）。
+
+`recover-paste` 会先搞清楚自己正跑在哪家宿主里（沿进程祖先链往上找，再核对 `CLAUDECODE`、`PI_CODING_AGENT`、`CODEX_THREAD_ID` 这些环境变量指纹），然后只读那一家的存储，别家的陈年会话再也没机会冒充。在 Claude Code 里还会直接用注入的会话 ID 精确定位，在 Codex 里则干脆拒绝执行并把你指回 path tag。实在识别不出来才退回按最新图片时间戳在三家赛跑。
+
+四家宿主全部活体验证过：Claude Code 靠注入的会话 ID 精确捞回粘贴，OpenCode 上 DeepSeek 全程自动触发 skill 跑完整条链路，Pi 只认自家存储不受别家污染，Codex 被拒之门外并指回 path tag。一句老实话：会话记录格式是这些工具的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
 
 OpenCode 接 DeepSeek 只要两步：`opencode auth login` 选 DeepSeek 贴上 key（落在 `~/.local/share/opencode/auth.json`），再把 `~/.config/opencode/opencode.jsonc` 的默认模型设成 `deepseek/deepseek-v4-flash`。Pi 的 key 放 `~/.pi/agent/auth.json`。
 
