@@ -704,7 +704,12 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
     return result;
 }
 
-// Back-compat named export used by tests for JSONL extraction.
+/**
+ * JSONL extraction for one transcript path, no scoping or scanning.
+ *
+ * @internal Exported only so tests can exercise extraction in isolation. The
+ * real entry point is recoverPastedImages; do not depend on this elsewhere.
+ */
 export function extractUserImages(transcriptPath: string): ImageBlockRef[] {
     return sourceForExplicitPath(transcriptPath, process.cwd()).extract();
 }

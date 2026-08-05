@@ -88,7 +88,7 @@ Respond with ONE JSON object only, no markdown fences, no commentary. Fill this 
     const missing = missingSchemaFields(result);
     if (missing.length > 0) {
         throw new Error(
-            `OpenAI-compatible API returned JSON that does not match the vision schema${missing.length > 0 ? ` (missing: ${missing.join(', ')})` : ''}. Retry, or switch to gemini-api / anthropic for enforced schemas. Got: ${truncate(text)}`,
+            `OpenAI-compatible API returned JSON that does not match the vision schema (missing: ${missing.join(', ')}). Retry, or switch to gemini-api / anthropic for enforced schemas. Got: ${truncate(text)}`,
         );
     }
 
