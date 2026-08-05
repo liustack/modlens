@@ -61,6 +61,8 @@ modlens config set anthropic.apiKey <sk-ant-key>
 
 Default model is Claude Haiku (`claude-haiku-4-5-20251001`). Schema is enforced through a forced tool call.
 
+**`ANTHROPIC_BASE_URL` trap.** modlens binds `ANTHROPIC_BASE_URL` to `anthropic.baseUrl`, so it inherits whatever that variable points at. If the user set it in their shell to route Claude Code through a text-only gateway (a common way to run a non-Claude model behind the Claude Code UI), then `-p anthropic` silently sends the vision request to that gateway too, where it fails or comes back blind, with no hint that the endpoint was swapped. Check `echo $ANTHROPIC_BASE_URL` when anthropic vision misbehaves. Fixes: unset it for the modlens call, pin the real endpoint with `modlens config set anthropic.baseUrl https://api.anthropic.com`, or use `-p gemini-api` instead.
+
 ### claude-cli (Claude Code login, no key)
 
 Rides an existing `claude` sign-in, so it costs the user's Claude subscription quota, not a separate API bill. Requires Claude Code installed and logged in (`claude --version` to check). Runs with `--allowedTools Read` only. Local image files only; for remote URLs use gemini-api instead. Default model alias `haiku`.
