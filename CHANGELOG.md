@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.0 - 2026-08-06
+
+- README rebuilt against how widely used projects actually write theirs: install command inside the first screen, a nav row and badges in the hero, short scannable highlights, and roughly 1,000 words instead of a long read. Harness specifics and security detail moved into `docs/harness-setup.md` and `docs/security.md`, with a Documentation table pointing at them.
+
 ## 2.7.11 - 2026-08-06
 
 - Stops calling it OCR. A vision model reading an image is not OCR, which is a specific and different technology, and the word was borrowed for convenience across the README, the skill, and both articles. The prose now says what actually happens: every word in the image is transcribed. The `ocr` field in the output contract keeps its familiar name, with a note that a vision model does the reading.
