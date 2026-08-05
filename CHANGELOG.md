@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.2 - 2026-08-05
+
+- Fix: runs with the `antigravity-cli` provider hung until the timeout killed them ([#1](https://github.com/liustack/modlens/issues/1), thanks @hawkmor for the diagnosis). agy exits cleanly but leaves a language server holding the inherited stdout pipe, so the child's `close` event never fires. The provider run now settles on `exit` plus a short drain window, and releases the pipes afterwards so a lingering descendant cannot keep the CLI process alive either.
+
 ## 2.7.1 - 2026-08-04
 
 - Docs: per-harness skill discovery paths (`~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/` for Pi and OpenCode), OpenCode + DeepSeek setup recipe, and the four-harness live verification matrix (Claude Code session-id recovery, OpenCode full skill loop on DeepSeek, Pi store isolation, Codex refusal).

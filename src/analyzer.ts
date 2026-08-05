@@ -50,6 +50,9 @@ interface ResolvedInput {
 const DEFAULT_TIMEOUT_MS = 180_000;
 // Give the provider's own timeout a chance to fire first; SIGTERM is the backstop.
 const KILL_GRACE_MS = 30_000;
+// After the provider exits, how long to keep draining stdout before giving up
+// on the pipe closing. Reset whenever more output arrives.
+const DRAIN_GRACE_MS = 500;
 
 export async function analyzeImage(options: AnalyzeOptions): Promise<AnalyzeResult> {
     const resolvedInput = resolveInput(options.input);
@@ -136,7 +139,8 @@ function validateInputFile(filePath: string): void {
     }
 }
 
-function runCommand(
+/** Exported for tests: the timeout path is otherwise behind a 30s backstop. */
+export function runCommand(
     providerName: string,
     invocation: ProviderInvocation,
     timeoutMs: number,
@@ -150,22 +154,72 @@ function runCommand(
         let stdout = '';
         let stderr = '';
         let timedOut = false;
+        let settled = false;
+        let drainTimer: NodeJS.Timeout | undefined;
 
         const timer = setTimeout(() => {
             timedOut = true;
             child.kill('SIGTERM');
         }, timeoutMs);
 
+        // 'close' waits for every stdio pipe to close, but agy leaves a
+        // language server running that inherited the pipe, so its write end
+        // never closes and 'close' never fires (issue #1). Settle on 'exit'
+        // plus a drain window instead, and drop the pipes afterwards so the
+        // lingering descendant cannot keep this process alive either.
+        const settle = (code: number | null) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timer);
+            clearTimeout(drainTimer);
+            child.stdout?.destroy();
+            child.stderr?.destroy();
+            child.unref();
+
+            if (timedOut) {
+                reject(new Error(`${providerName} provider timed out after ${timeoutMs} ms.`));
+                return;
+            }
+            if (code !== 0) {
+                reject(
+                    new Error(
+                        `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
+                    ),
+                );
+                return;
+            }
+            resolve({ stdout, stderr });
+        };
+
+        let exitCode: number | null = null;
+        let exited = false;
+        const restartDrain = () => {
+            if (!exited || settled) {
+                return;
+            }
+            clearTimeout(drainTimer);
+            drainTimer = setTimeout(() => settle(exitCode), DRAIN_GRACE_MS);
+        };
+
         child.stdout.on('data', (chunk: Buffer) => {
             stdout += chunk.toString();
+            restartDrain();
         });
 
         child.stderr.on('data', (chunk: Buffer) => {
             stderr += chunk.toString();
+            restartDrain();
         });
 
         child.on('error', (error) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
             clearTimeout(timer);
+            clearTimeout(drainTimer);
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 reject(
                     new Error(
@@ -177,24 +231,13 @@ function runCommand(
             reject(error);
         });
 
-        child.on('close', (code) => {
-            clearTimeout(timer);
-
-            if (timedOut) {
-                reject(new Error(`${providerName} provider timed out after ${timeoutMs} ms.`));
-                return;
-            }
-
-            if (code !== 0) {
-                reject(
-                    new Error(
-                        `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
-                    ),
-                );
-                return;
-            }
-
-            resolve({ stdout, stderr });
+        child.on('exit', (code) => {
+            exitCode = code;
+            exited = true;
+            restartDrain();
         });
+
+        // Normal providers close their pipes right after exiting: settle at once.
+        child.on('close', (code) => settle(code));
     });
 }
