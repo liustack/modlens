@@ -1,6 +1,6 @@
 ---
 name: modlens
-description: "Plug-in vision for text-only models. Use whenever the user shares an image (local path, screenshot, photo, chart, document scan, or image URL) and the active model cannot see images or has no vision tool. Runs the modlens CLI to convert the image into structured JSON evidence: OCR text, layout, semantics, visual clues. Also use when the user asks how to install, configure, or switch modlens providers (Gemini API key, OpenAI-compatible endpoints, Claude API or Claude Code CLI)."
+description: "Plug-in vision for text-only models. Use whenever the user shares an image (local path, screenshot, photo, chart, document scan, or image URL) and the active model cannot see images or has no vision tool. Runs the modlens CLI to convert the image into structured JSON evidence: every word transcribed, layout regions, semantics, visual clues. Also use when the user asks how to install, configure, or switch modlens providers (Gemini API key, OpenAI-compatible endpoints, Claude API or Claude Code CLI)."
 allowed-tools:
   - Bash
 ---
@@ -11,7 +11,7 @@ Use this skill when:
 
 - The user provides an image path or image URL and asks anything about it
 - The active model has no native vision (text-only model in a coding agent)
-- You need OCR text, layout, or chart/document structure as evidence before reasoning
+- You need the text inside an image, its layout, or a chart's structure as evidence before reasoning
 - The user asks how to configure modlens, get an API key for it, or switch its provider: follow `references/configure.md` and run the commands for them
 
 Do not use this skill for:
@@ -91,7 +91,7 @@ Harnesses rarely hand you a clean path. First identify which harness you are in,
 Top level: `{ image, provider, result, meta }`. Inside `result`:
 
 - `summary`: one-paragraph description of the image
-- `ocr.full_text` + `ocr.lines[]`: transcribed text evidence
+- `ocr.full_text` + `ocr.lines[]`: every word in the image, transcribed (the field keeps the familiar `ocr` name, though a vision model does the reading, not an OCR engine)
 - `layout.regions[]`: typed blocks (`title`, `paragraph`, `table`, `chart`, `code`, ...) in reading order
 - `semantics`: scene, intent, entities, relations
 - `visual`: colors and style clues

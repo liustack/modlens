@@ -11,7 +11,7 @@
 
 DeepSeek-V4-Flash gives you a lot of model for very little money: fast, cheap, capable, and blind. It is not just DeepSeek either. Any text-only model running inside Codex, Claude Code, Pi, or OpenCode hits the same wall: you throw it a screenshot of an error and it sees nothing.
 
-ModLens gives it sight, and **you just paste**. Every other bridge makes you save the image to a file and then mention the path in the chat. ModLens pulls the pasted image back out of session storage instead. What comes back is not "this is a screenshot of an error", it is structured evidence: full OCR text, layout regions in reading order, semantic entities, visual clues, all of it quotable.
+ModLens gives it sight, and **you just paste**. Every other bridge makes you save the image to a file and then mention the path in the chat. ModLens pulls the pasted image back out of session storage instead. What comes back is not "this is a screenshot of an error", it is evidence you can quote: every word in the image transcribed, the layout cut into regions in reading order, and the entities and relations on screen listed separately.
 
 No model swap, no prompt surgery, no local proxy. It starts with no key at all.
 
@@ -52,7 +52,7 @@ All four harnesses are verified on real machines: Claude Code pinpoints the exac
 | :-- | :-- | :-- | :-- |
 | Your chosen model | has to change | stays | stays |
 | An image pasted into the chat | visible if the model supports it | out of reach, save a file and report the path | handled directly |
-| What you get back | the model's own reading | usually a description | OCR text, layout regions, semantics, visual clues |
+| What you get back | the model's own reading | usually a description | full transcription, layout regions, entities and relations, visual clues |
 | Where it cannot read | may invent | may invent | says so in `uncertainty` |
 | Cost | multimodal model pricing | usually per API call | agy's free quota, or a free Gemini key |
 | Setup | change config, change model | install a server, edit config | one CLI or one skill |
@@ -193,7 +193,7 @@ Pointing OpenCode at DeepSeek takes two lines of setup: `opencode auth login`, p
 ## Why a bridge instead of a multimodal model?
 
 - **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever else) for its price and its reasoning, not its eyesight. ModLens adds sight without touching that choice.
-- **Evidence beats pixels.** Text models reason best over structured text, not raw pixels. ModLens hands them OCR plus layout plus semantics, already decoded, not a base64 blob.
+- **Evidence beats pixels.** Text models reason best over structured text, not raw pixels. ModLens hands them the transcribed words, the segmented layout, and the extracted meaning, not a base64 blob.
 - **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 moved to its successor, Antigravity CLI, behind the same provider interface, so the next engine swap costs one file, not a rewrite.
 
 ModSearch, ModLens's sibling project, plays the same trick for web search and page fetching: [liustack/modsearch](https://github.com/liustack/modsearch).
