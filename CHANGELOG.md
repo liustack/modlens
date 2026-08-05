@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.9 - 2026-08-06
+
+- The flow diagram says something again. Replacing ASCII art with an abstract illustration removed the labels along with the alignment chore, which was a bad trade. It is now a rendered diagram with real labels, one per language, generated from HTML so nothing drifts.
+
 ## 2.7.8 - 2026-08-06
 
 - Releases are now one command: `pnpm release <version|patch|minor|major>` refuses a dirty tree, a non-main branch, a duplicate tag, or a version with no CHANGELOG entry, then runs typecheck, tests, and build before anything irreversible happens, and finishes with tag, push, npm publish, and a GitHub release. Publishing by hand is how a version once reached npm with no changelog and no tag behind it.

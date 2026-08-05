@@ -13,7 +13,7 @@ DeepSeek-V4-Flash gives you a lot of model for very little money: fast, strong, 
 
 ModLens fixes this the lightest way possible: it never touches your config, never adds a local proxy, and is just a vision plug-in you can run as a CLI or install as an Agent Skill. What it hands back is not a one-line caption but structured visual evidence: text, layout, regions, entities, relations, visual clues. Five vision engines to pick from. The default one needs no key at all, and the fastest one runs on a free Gemini key whose image understanding embarrasses most flagships, Fable 5 included. How it works:
 
-![Paste an image into the terminal, a lens reads it, structured evidence comes back](https://raw.githubusercontent.com/liustack/modlens/main/assets/flow.jpg)
+![A text-only model hands an image to the vision engine through the modlens skill and gets structured JSON evidence back](https://raw.githubusercontent.com/liustack/modlens/main/assets/flow.en.png)
 
 - **You just paste.** Every other bridge makes you save a file and report its path. ModLens pulls the pasted image back out of session storage.
 - **Evidence, not an impression.** Full OCR text, layout regions in reading order, semantic entities, visual clues. Your model can quote specifics.

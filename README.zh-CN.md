@@ -13,7 +13,7 @@ DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，要说唯一的缺�
 
 ModLens 用最轻的方式解决它：不动你的配置，不装本地代理，就是一个视觉外挂，CLI 和 skill 两种用法。它产出的不是一句话描述，是结构化的视觉证据：文字、版面、区块、实体、关系、视觉线索。视觉引擎有五个可选，默认那个零 key 就能跑，最快的那个用免费 Gemini key，识图能力连 Fable 5 都吊打。原理如下：
 
-![把图片粘进终端，放大镜读图，结构化证据回到终端](https://raw.githubusercontent.com/liustack/modlens/main/assets/flow.jpg)
+![纯文本模型经 modlens skill 把图片交给视觉引擎，回来的是结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modlens/main/assets/flow.zh.png)
 
 - **你直接粘贴就行。** 别的方案让你先存成文件再报路径，ModLens 从会话存储里把粘贴的图捞回来。
 - **给的是证据，不是印象。** OCR 全文、按阅读顺序排好的版面区块、语义实体、视觉线索，模型能引用具体内容。
