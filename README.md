@@ -178,7 +178,7 @@ npx -y skills add liustack/liustack -g
 
 ## Disclaimer
 
-For personal study and experimentation, not commercial use. Antigravity CLI usage is bound by your own Google account terms and quota.
+Provided as-is under the MIT License below. The author makes no warranty and gives no endorsement for any particular use, commercial use included. Your use of upstream engines (Antigravity CLI, the Gemini, OpenAI, and Anthropic APIs, and any OpenAI-compatible endpoint) is governed by their own terms and quotas, which you are responsible for.
 
 ## License
 
