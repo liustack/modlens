@@ -24,14 +24,28 @@ describe('escapeLikePattern', () => {
     });
 });
 
-describe('opencode harness support', async () => {
-    const nodeRequire = createRequire(import.meta.url);
-    const { DatabaseSync } = nodeRequire('node:sqlite');
+// node:sqlite ships (unflagged) only on Node 24+, so these DB-backed tests are
+// skipped on older runtimes rather than crashing the suite. The recovery path
+// itself degrades gracefully there: opencode surfaces as a "Blocked:" note while
+// the JSONL harnesses keep working, which the index suite covers.
+let DatabaseSync: (new (p: string) => {
+    exec: (sql: string) => void;
+    prepare: (sql: string) => { run: (...params: unknown[]) => void };
+    close: () => void;
+}) | undefined;
+try {
+    ({ DatabaseSync } = createRequire(import.meta.url)('node:sqlite'));
+} catch {
+    DatabaseSync = undefined;
+}
+
+describe.skipIf(!DatabaseSync)('opencode harness support', () => {
+    const Db = DatabaseSync as NonNullable<typeof DatabaseSync>;
 
     function openDb(home: string) {
         const dir = path.join(home, '.local', 'share', 'opencode');
         fs.mkdirSync(dir, { recursive: true });
-        const db = new DatabaseSync(path.join(dir, 'opencode.db'));
+        const db = new Db(path.join(dir, 'opencode.db'));
         db.exec(`
             CREATE TABLE IF NOT EXISTS session (id TEXT PRIMARY KEY, slug TEXT, directory TEXT);
             CREATE TABLE IF NOT EXISTS message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
@@ -41,7 +55,7 @@ describe('opencode harness support', async () => {
     }
 
     function insertImage(
-        db: InstanceType<typeof DatabaseSync>,
+        db: InstanceType<typeof Db>,
         n: number,
         slug: string,
         directory: string,
