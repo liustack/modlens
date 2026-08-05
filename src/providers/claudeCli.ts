@@ -4,6 +4,7 @@
 import * as path from 'path';
 import { buildVisionPrompt } from '../prompt.ts';
 import { visionResultSchemaJson } from '../schema.ts';
+import { parseJsonLoose, truncate } from '../util/json.ts';
 import type {
     BuildProviderInvocationOptions,
     ProviderInvocation,
@@ -91,34 +92,11 @@ export function parseClaudeCliOutput(stdout: string): ProviderParsedOutput {
 }
 
 function parseEnvelope(stdout: string): ClaudePrintEnvelope {
-    const trimmed = stdout.trim();
-    let parsed = tryParseJson(trimmed);
-
-    if (parsed === null) {
-        const firstBrace = trimmed.indexOf('{');
-        const lastBrace = trimmed.lastIndexOf('}');
-        if (firstBrace >= 0 && lastBrace > firstBrace) {
-            parsed = tryParseJson(trimmed.slice(firstBrace, lastBrace + 1));
-        }
-    }
-
+    const parsed = parseJsonLoose(stdout);
     if (!parsed || typeof parsed !== 'object') {
         throw new Error('Failed to parse Claude CLI JSON output.');
     }
-
     return parsed as ClaudePrintEnvelope;
-}
-
-function tryParseJson(text: string): unknown | null {
-    try {
-        return JSON.parse(text);
-    } catch {
-        return null;
-    }
-}
-
-function truncate(text: string): string {
-    return text.length > 300 ? `${text.slice(0, 300)}...` : text;
 }
 
 export const claudeCliProvider: VisionProvider = {

@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { buildVisionPrompt } from '../prompt.ts';
 import { visionResultSchemaJson } from '../schema.ts';
+import { parseJsonLoose, tryParseJson } from '../util/json.ts';
 import type {
     ProviderFailureContext,
     BuildProviderInvocationOptions,
@@ -89,30 +90,11 @@ export function parseAntigravityOutput(stdout: string): ProviderParsedOutput {
 }
 
 function parseEnvelope(stdout: string): AgyPrintEnvelope {
-    const trimmed = stdout.trim();
-    let parsed = tryParseJson(trimmed);
-
-    if (parsed === null) {
-        const firstBrace = trimmed.indexOf('{');
-        const lastBrace = trimmed.lastIndexOf('}');
-        if (firstBrace >= 0 && lastBrace > firstBrace) {
-            parsed = tryParseJson(trimmed.slice(firstBrace, lastBrace + 1));
-        }
-    }
-
+    const parsed = parseJsonLoose(stdout);
     if (!parsed || typeof parsed !== 'object') {
         throw new Error('Failed to parse Antigravity CLI JSON output.');
     }
-
     return parsed as AgyPrintEnvelope;
-}
-
-function tryParseJson(text: string): unknown | null {
-    try {
-        return JSON.parse(text);
-    } catch {
-        return null;
-    }
 }
 
 const SWITCH_HINT = `Or switch to a provider with its own quota and no interactive login:

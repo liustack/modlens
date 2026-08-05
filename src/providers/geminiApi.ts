@@ -3,6 +3,7 @@
 import { fetchRemoteImageBase64, readLocalImageBase64 } from '../imageInput.ts';
 import { buildVisionPrompt } from '../prompt.ts';
 import { VISION_RESULT_SCHEMA } from '../schema.ts';
+import { truncate } from '../util/json.ts';
 import type {
     BuildProviderInvocationOptions,
     ProviderParsedOutput,
@@ -92,10 +93,6 @@ export async function executeGeminiApi(
             usage: payload.usageMetadata ?? null,
         },
     };
-}
-
-function truncate(text: string): string {
-    return text.length > 300 ? `${text.slice(0, 300)}...` : text;
 }
 
 export const geminiApiProvider: VisionProvider = {

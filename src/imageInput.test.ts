@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, expect, it } from 'vitest';
-import { extractJson, mimeTypeFor, readLocalImageBase64 } from './imageInput.ts';
+import { mimeTypeFor, readLocalImageBase64 } from './imageInput.ts';
 
 describe('mimeTypeFor', () => {
     it('maps common extensions', () => {
@@ -32,23 +32,5 @@ describe('readLocalImageBase64', () => {
         expect(image.mimeType).toBe('image/png');
         expect(Buffer.from(image.data, 'base64').toString()).toBe('bytes');
         fs.rmSync(dir, { recursive: true, force: true });
-    });
-});
-
-describe('extractJson', () => {
-    it('parses direct json', () => {
-        expect(extractJson(' {"a":1} ')).toEqual({ a: 1 });
-    });
-
-    it('unwraps fenced blocks', () => {
-        expect(extractJson('noise\n```json\n{"a":1}\n```\nmore')).toEqual({ a: 1 });
-    });
-
-    it('brace-scans as a last resort', () => {
-        expect(extractJson('The result is {"a":1} thanks')).toEqual({ a: 1 });
-    });
-
-    it('returns null when nothing parses', () => {
-        expect(extractJson('no json here')).toBeNull();
     });
 });

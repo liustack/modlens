@@ -3,6 +3,7 @@
 import { readLocalImageBase64 } from '../imageInput.ts';
 import { buildVisionPrompt } from '../prompt.ts';
 import { VISION_RESULT_SCHEMA } from '../schema.ts';
+import { truncate } from '../util/json.ts';
 import type {
     BuildProviderInvocationOptions,
     ProviderParsedOutput,
@@ -101,10 +102,6 @@ Report your findings by calling the ${TOOL_NAME} tool.`;
             usage: payload.usage ?? null,
         },
     };
-}
-
-function truncate(text: string): string {
-    return text.length > 300 ? `${text.slice(0, 300)}...` : text;
 }
 
 export const anthropicApiProvider: VisionProvider = {
