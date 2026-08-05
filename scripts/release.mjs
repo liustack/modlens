@@ -56,7 +56,17 @@ if (run('git', ['tag', '--list', `v${next}`])) {
 // The check that would have caught a real mistake: a version published with
 // nothing written about it.
 const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf-8');
-const section = changelog.match(new RegExp(`^## ${next.replace(/\\./g, '\\\\.')}[^\\n]*\\n([\\s\\S]*?)(?=^## |\\Z)`, 'm'));
+// Escape the dots in the version (2.8.0 -> 2\.8\.0) so they match literally,
+// and end the section at the next "## " heading or the end of the file. The old
+// pattern escaped a backslash-then-any-char that never occurs in a version, so
+// the dots stayed wildcards, and it terminated on \Z, which JS regex does not
+// support (it matched a literal "Z"), so the final CHANGELOG entry never matched.
+const section = changelog.match(
+  new RegExp(
+    `^## ${next.replace(/\./g, '\\.')}[^\\n]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
+    'm',
+  ),
+);
 if (!section) {
   fail(`CHANGELOG.md has no "## ${next}" section. Write what changed before releasing it.`);
 }
