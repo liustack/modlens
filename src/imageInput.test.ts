@@ -15,6 +15,12 @@ describe('mimeTypeFor', () => {
         expect(mimeTypeFor('https://x.example.com/pic.png?w=100')).toBe('image/png');
         expect(mimeTypeFor('/tmp/mystery.bin')).toBe('image/jpeg');
     });
+
+    it('keeps the extension of local paths containing # or ?', () => {
+        // new URL() would read these as a fragment/query and lose the extension.
+        expect(mimeTypeFor('/tmp/shot#2.png')).toBe('image/png');
+        expect(mimeTypeFor('/tmp/report?draft.webp')).toBe('image/webp');
+    });
 });
 
 describe('readLocalImageBase64', () => {
