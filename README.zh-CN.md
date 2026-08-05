@@ -9,75 +9,55 @@
   <p><a href="./README.md">English</a></p>
 </div>
 
-DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，要说唯一的缺点就是没有多模态。不仅 DeepSeek-V4-Flash，只要是纯文本语言模型，跑在 Codex、Claude Code、Pi Agent、OpenClaw 中，都有这个问题。
+DeepSeek-V4-Flash 碗大又好吃，速度快、便宜、能打，唯独没有多模态。不止它，任何纯文本模型跑在 Codex、Claude Code、Pi、OpenCode 里，都撞同一堵墙：你甩过去一张报错截图，它看不见。
 
-ModLens 用最轻的方式解决它：不动你的配置，不装本地代理，就是一个视觉外挂，CLI 和 skill 两种用法。它产出的不是一句话描述，是结构化的视觉证据：文字、版面、区块、实体、关系、视觉线索。视觉引擎有五个可选，默认那个零 key 就能跑，最快的那个用免费 Gemini key，识图能力连 Fable 5 都吊打。原理如下：
+ModLens 给它装上视力，而且**你直接粘贴就行**。别的方案都要你先把图存成文件、再在对话里报一句路径，ModLens 直接从会话存储里把粘贴的图捞回来。回来的不是一句「这是一张报错截图」，是结构化证据：OCR 全文、按阅读顺序排好的版面区块、语义实体、视觉线索，模型能引用具体内容。
+
+模型不用换，提示词不用改，本地不装代理。零 key 就能开跑。
 
 ![纯文本模型经 modlens skill 把图片交给视觉引擎，回来的是结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modlens/main/assets/flow.zh.png)
 
-- **你直接粘贴就行。** 别的方案让你先存成文件再报路径，ModLens 从会话存储里把粘贴的图捞回来。
-- **给的是证据，不是印象。** OCR 全文、按阅读顺序排好的版面区块、语义实体、视觉线索，模型能引用具体内容。
-- **读不准就说读不准。** 拿不准的地方进 `uncertainty`，不编。像素坐标和置信度分数这两样模型最爱编的，v2 直接删了。
-- **不换模型，不改配置，不装代理。** 你选 DeepSeek 图的是价格和推理，不是视力，这个选择不用动。
-- **零 key 起步，想快就领个免费 key。** agy 不要 key，AI Studio 的免费 Gemini key 三分钟到手，识图 5-10 秒。
-- **装一次，四家 harness 通用。** Claude Code、Codex、Pi、OpenCode 都验证过。
+## 三步用起来
 
-**环境要求**：Node 18+（OpenCode 的粘贴恢复需要 22.5+），macOS 或 Linux。 出问题看[故障排查](docs/troubleshooting.md)，里面按报错原文列了每一条的成因和解法。
-
-## 你可以直接粘贴图片
-
-别的方案让你先把图存成文件，再在对话里报一句路径。ModLens 让你直接粘贴。
-
-这不怪它们偷懒。粘贴这个动作从头到尾是客户端办的，图一进对话框就被转码发走，识图 MCP server 连插手的机会都没有，所以它们的文档只能教你存文件、报路径。ModLens 走的是另一条路：图片字节在发走之前，早被 harness 原样写进了本地会话存储，skill 直接去那里把它捞回来落成文件，再喂给视觉引擎。你什么都不用做，模型拿到的是完整图片，不是一句「麻烦告诉我路径」。
-
-四家 harness 真机验证过：Claude Code 按注入的会话 ID 精确定位，Pi 的存储路数和它同构，OpenCode 换成了 SQLite，Codex 的粘贴图本来就带临时路径，走路径标签就行。动手之前 `recover-paste` 会先认清自己跑在哪一家（查进程祖先链，核对环境变量指纹），只读那一家的存储，别家的旧会话冒充不了。
-
-放在一起看更清楚：
-
-| | 换个多模态模型 | 识图类 MCP server | ModLens |
-| :-- | :-- | :-- | :-- |
-| 你选的模型 | 得换掉 | 不用换 | 不用换 |
-| 粘贴进对话的图 | 模型支持就能看 | 接不住，文档让你先存文件报路径 | 直接接住 |
-| 拿到手的是什么 | 模型自己的理解 | 通常是一段描述 | OCR 全文、版面区块、语义、视觉线索 |
-| 读不准的地方 | 可能编 | 可能编 | 进 `uncertainty`，明说读不准 |
-| 花费 | 多模态模型的价格 | 多数按 API 计费 | agy 免费额度，或免费 Gemini key |
-| 上手 | 改配置换模型 | 装 server、改配置 | 一个 CLI 或一个 skill |
-
-诚实说短板：agy 的免费额度是周配额，重度用会撞墙（换成免费 Gemini key 就绕开了）。会话存储格式是各家 harness 的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
-
-## 快速开始
-
-**1. 装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
+**一、装 skill。** 跟你的 agent 说一句就行（Claude Code、Codex、OpenClaw、Cursor 都吃这套）：
 
 ```text
 安装这个 skill https://github.com/liustack/modlens
 ```
 
-或者自己动手：
+自己动手也行：`npx -y skills add liustack/modlens`
 
-```bash
-npx -y skills add liustack/modlens
-```
-
-各家 harness 找 skill 的位置不一样：Claude Code 读 `~/.claude/skills/`，Codex 读 `~/.codex/skills/`，Pi 和 OpenCode 读 `~/.agents/skills/`。软链接在哪家都好使，把 skill 目录链一次，各家永远用最新版。
-
-**2. 接一个视觉引擎。** 推荐去 [aistudio.google.com](https://aistudio.google.com) 领个免费 Gemini key，三分钟，不要信用卡，出图 5-10 秒：
+**二、接一个视觉引擎。** 推荐去 [aistudio.google.com](https://aistudio.google.com) 领个免费 Gemini key，三分钟，不要信用卡，识图 5 到 10 秒：
 
 ```bash
 modlens config set gemini-api.apiKey <key>
 modlens config set provider gemini-api
 ```
 
-懒得敲这两行？跟 agent 说一句「帮我把 Gemini key 配进 modlens」，它自己会跑。
+懒得敲这两行？跟 agent 说「帮我把 Gemini key 配进 modlens」，它自己会跑。不想注册也行，装上 Antigravity CLI 零 key 开跑，代价是慢（15 到 40 秒），免费额度也紧。
 
-不想注册也行，装上 Antigravity CLI 就能零 key 开跑，代价是慢（15-40 秒），免费额度也紧：
+**三、直接用。** 粘一张图，或者甩个图片路径，随便问。skill 自己会触发。
 
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy    # 浏览器完成登录后退出
-```
+环境要求就一行：Node 18+（OpenCode 的粘贴恢复需要 22.5+），macOS 或 Linux。
 
-**3. 用起来。** 粘贴一张图，或者甩个图片路径，随便问。skill 自己会触发。
+## 粘贴这件事，为什么只有它接得住
+
+粘贴从头到尾是客户端办的事。图一进对话框就被转码发走，识图类 MCP server 连插手的机会都没有，所以它们的文档只能教你：先存文件，再报路径。
+
+ModLens 走的是另一条路。图片字节在发给模型之前，早被 harness 原样写进了本地会话存储。skill 直接去那儿把它捞回来落成文件，喂给视觉引擎。你什么都不用做，模型拿到的是完整图片，而不是一句「麻烦告诉我路径」。
+
+四家 harness 都在真机上验证过：Claude Code 按注入的会话 ID 精确定位，Pi 的存储路数和它同构，OpenCode 换成了 SQLite，Codex 的粘贴图本来就带临时路径、走路径标签即可。动手之前 `recover-paste` 会先认清自己跑在哪一家（查进程祖先链，核对环境变量指纹），只读那一家的存储，隔壁项目的旧会话冒充不了，捞出来的文件权限是 0600。
+
+| | 换个多模态模型 | 识图类 MCP server | ModLens |
+| :-- | :-- | :-- | :-- |
+| 你选的模型 | 得换掉 | 不用换 | 不用换 |
+| 粘贴进对话的图 | 模型支持就能看 | 接不住，得先存文件报路径 | 直接接住 |
+| 拿到手的是什么 | 模型自己的理解 | 通常一段描述 | OCR 全文、版面区块、语义、视觉线索 |
+| 读不准的地方 | 可能编 | 可能编 | 进 `uncertainty`，明说读不准 |
+| 花费 | 多模态模型的价格 | 多数按 API 计费 | agy 免费额度，或免费 Gemini key |
+| 上手 | 改配置换模型 | 装 server、改配置 | 一个 CLI 或一个 skill |
+
+短板也摆这儿：agy 的免费额度是周配额，重度用会撞墙（换成免费 Gemini key 就绕开了）。会话存储格式是各家 harness 的内部实现，没有兼容承诺，哪天捞不动了，拖文件永远是保底。
 
 ## 看看效果
 

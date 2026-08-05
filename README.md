@@ -9,75 +9,55 @@
   <p><a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
-DeepSeek-V4-Flash gives you a lot of model for very little money: fast, strong, and its one real flaw is no multimodal. And it's not just DeepSeek. Every text-only model running inside Codex, Claude Code, Pi Agent, or OpenClaw hits the same wall.
+DeepSeek-V4-Flash gives you a lot of model for very little money: fast, cheap, capable, and blind. It is not just DeepSeek either. Any text-only model running inside Codex, Claude Code, Pi, or OpenCode hits the same wall: you throw it a screenshot of an error and it sees nothing.
 
-ModLens fixes this the lightest way possible: it never touches your config, never adds a local proxy, and is just a vision plug-in you can run as a CLI or install as an Agent Skill. What it hands back is not a one-line caption but structured visual evidence: text, layout, regions, entities, relations, visual clues. Five vision engines to pick from. The default one needs no key at all, and the fastest one runs on a free Gemini key whose image understanding embarrasses most flagships, Fable 5 included. How it works:
+ModLens gives it sight, and **you just paste**. Every other bridge makes you save the image to a file and then mention the path in the chat. ModLens pulls the pasted image back out of session storage instead. What comes back is not "this is a screenshot of an error", it is structured evidence: full OCR text, layout regions in reading order, semantic entities, visual clues, all of it quotable.
+
+No model swap, no prompt surgery, no local proxy. It starts with no key at all.
 
 ![A text-only model hands an image to the vision engine through the modlens skill and gets structured JSON evidence back](https://raw.githubusercontent.com/liustack/modlens/main/assets/flow.en.png)
 
-- **You just paste.** Every other bridge makes you save a file and report its path. ModLens pulls the pasted image back out of session storage.
-- **Evidence, not an impression.** Full OCR text, layout regions in reading order, semantic entities, visual clues. Your model can quote specifics.
-- **It says when it cannot read something.** Anything uncertain lands in `uncertainty` rather than being invented. Pixel coordinates and confidence scores, the two things models fabricate most, were dropped in v2.
-- **No model swap, no config changes, no local proxy.** You picked your model for price and reasoning, not eyesight. That choice stays.
-- **Starts with no key, gets faster with a free one.** agy needs no key at all, and a free AI Studio Gemini key takes three minutes and reads an image in 5-10 seconds.
-- **Install once, works in four harnesses.** Verified in Claude Code, Codex, Pi, and OpenCode.
+## Three steps
 
-**Requirements**: Node 18+ (22.5+ for OpenCode paste recovery), macOS or Linux. Hit a problem? [Troubleshooting](docs/troubleshooting.md) lists every error this CLI prints, with causes and fixes.
-
-## You can just paste the image
-
-Every other bridge makes you save the image to a file first, then mention the path in the chat. ModLens lets you paste it.
-
-That is not laziness on their part. Pasting is handled end to end by the client: the moment an image lands in the chat box it is encoded and sent, and a vision MCP server never gets a chance to step in, which is why their docs can only tell you to save the file and report the path. ModLens takes the other route. Before those bytes are ever sent, the harness has already written them to local session storage, so the skill goes there, pulls them back out into a real file, and feeds that to the vision engine. You do nothing, and the model answers with the full image instead of asking you for a path.
-
-Verified on real machines across four harnesses: Claude Code pinpoints the exact session from its injected session id, Pi stores sessions the same way, OpenCode swaps in SQLite, and Codex's pasted images already carry a temp path so the path-tag route handles them. Before touching anything, `recover-paste` works out which harness it is running inside, by walking the process ancestry and checking environment fingerprints, and reads only that harness's storage, so another tool's stale sessions can't impersonate it.
-
-Side by side:
-
-| | Swap in a multimodal model | Vision MCP servers | ModLens |
-| :-- | :-- | :-- | :-- |
-| Your chosen model | has to change | stays | stays |
-| An image pasted into the chat | visible if the model supports it | not reachable, their docs say save a file and report the path | handled directly |
-| What you get back | the model's own reading | usually a description | OCR text, layout regions, semantics, visual clues |
-| Where it cannot read | may invent | may invent | says so in `uncertainty` |
-| Cost | multimodal model pricing | usually per API call | agy's free quota, or a free Gemini key |
-| Setup | change config, change model | install a server, edit config | one CLI or one skill |
-
-The honest weaknesses: agy's free tier is a weekly quota and heavy use hits the wall (a free Gemini key sidesteps that). Session storage layouts are each harness's internals with no compatibility promise, so if recovery ever breaks, dragging the file in still works everywhere.
-
-## Quick start
-
-**1. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**1. Install the skill.** Tell your agent (Claude Code, Codex, OpenClaw, and Cursor all take this):
 
 ```text
 Install the skill from https://github.com/liustack/modlens
 ```
 
-or do it yourself:
+Or do it yourself: `npx -y skills add liustack/modlens`
 
-```bash
-npx -y skills add liustack/modlens
-```
-
-Harnesses look for skills in different places: Claude Code reads `~/.claude/skills/`, Codex reads `~/.codex/skills/`, Pi and OpenCode read `~/.agents/skills/`. Symlinks work in all of them, so linking the skill folder once keeps every agent on the latest version.
-
-**2. Wire up a vision engine.** Recommended: a free Gemini key from [aistudio.google.com](https://aistudio.google.com). Three minutes, no credit card, 5-10 seconds per image:
+**2. Give it a vision engine.** A free Gemini key from [aistudio.google.com](https://aistudio.google.com) is the fast answer: three minutes, no credit card, 5 to 10 seconds per image.
 
 ```bash
 modlens config set gemini-api.apiKey <key>
 modlens config set provider gemini-api
 ```
 
-Don't feel like typing those two lines? Tell your agent "set my Gemini key in modlens" and it runs them for you.
-
-Skipping the sign-up is fine too: Antigravity CLI works with no key at all, it is just slower (15-40s) and its free quota is tight.
-
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy    # opens browser sign-in, then exit
-```
+Don't feel like typing those? Tell your agent "set my Gemini key in modlens" and it runs them. Skipping the sign-up is fine too: Antigravity CLI works with no key, it is just slower (15 to 40 seconds) and its free quota is tight.
 
 **3. Use it.** Paste an image, or throw a path at it, and ask anything. The skill fires on its own.
+
+Requirements, in one line: Node 18+ (22.5+ for OpenCode paste recovery), macOS or Linux.
+
+## Why pasting works here and nowhere else
+
+Pasting is handled end to end by the client. The moment an image lands in the chat box it is encoded and sent, and a vision MCP server never gets a chance to step in, which is why their docs can only tell you to save the file and report the path.
+
+ModLens takes the other route. Before those bytes are sent anywhere, the harness has already written them to local session storage. The skill goes there, pulls them back into a real file, and hands that to the vision engine. You do nothing, and the model gets the whole image instead of asking you for a path.
+
+All four harnesses are verified on real machines: Claude Code pinpoints the exact session from its injected session id, Pi stores sessions the same way, OpenCode swaps in SQLite, and Codex's pasted images already carry a temp path, so the path-tag route handles them. Before touching anything, `recover-paste` works out which harness it is running inside (process ancestry, then environment fingerprints) and reads only that harness's storage, so a neighbouring project's old sessions cannot impersonate it. Recovered files are written 0600.
+
+| | Swap in a multimodal model | Vision MCP servers | ModLens |
+| :-- | :-- | :-- | :-- |
+| Your chosen model | has to change | stays | stays |
+| An image pasted into the chat | visible if the model supports it | out of reach, save a file and report the path | handled directly |
+| What you get back | the model's own reading | usually a description | OCR text, layout regions, semantics, visual clues |
+| Where it cannot read | may invent | may invent | says so in `uncertainty` |
+| Cost | multimodal model pricing | usually per API call | agy's free quota, or a free Gemini key |
+| Setup | change config, change model | install a server, edit config | one CLI or one skill |
+
+The weaknesses sit here too: agy's free tier is a weekly quota and heavy use hits the wall (a free Gemini key sidesteps it). Session storage layouts are each harness's internals with no compatibility promise, so if recovery ever breaks, dragging the file in still works everywhere.
 
 ## See it work
 

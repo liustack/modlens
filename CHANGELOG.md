@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.10 - 2026-08-06
+
+- README rewritten rather than patched again. The hero buried the one thing that sets this apart (you can paste) under a generic pitch, then repeated it in a feature list and again in its own section. The opening now leads with pasting, the feature list is gone as duplication, and the comparison against swapping models or running a vision MCP server sits where a reader weighing options will find it.
+
 ## 2.7.9 - 2026-08-06
 
 - The flow diagram says something again. Replacing ASCII art with an abstract illustration removed the labels along with the alignment chore, which was a bad trade. It is now a rendered diagram with real labels, one per language, generated from HTML so nothing drifts.
