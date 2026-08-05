@@ -83,9 +83,18 @@ Output is a fixed JSON shape:
     "ocr": { "full_text": "/shaping\nBEFORE YOU BUILD\n...", "lines": [] },
     "layout": { "regions": [{ "reading_order": 1, "type": "title", "text": "/shaping" }] },
     "uncertainty": []
+  },
+  "meta": {
+    "generatedAt": "2026-08-06T12:00:00.000Z",
+    "model": "gemini-3.6-flash",
+    "conversationId": null,
+    "durationSeconds": 6.4,
+    "usage": { "promptTokenCount": 1234, "candidatesTokenCount": 567 }
   }
 }
 ```
+
+`meta` records how the result was produced: when (`generatedAt`), which `model`, the provider's `conversationId` when it has one, wall-clock `durationSeconds`, and the raw `usage` the provider reported (shape varies by provider, `null` when none).
 
 Inside the Codex desktop app: drop in a tweet screenshot and a text-only DeepSeek reads the caption, the engagement numbers (2.9K replies, 270K likes, 5M views), even the image's alt text. Where the resolution runs out, it says so.
 
@@ -109,16 +118,41 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 
 ## CLI reference
 
+`modlens analyze` (the default command):
+
 | Flag | Meaning | Default |
 | :-- | :-- | :-- |
 | `-i, --input <path\|url>` | Image to analyze (required) | |
 | `-p, --provider <name>` | Vision provider | `antigravity-cli` |
-| `-m, --model <name>` | Provider model | `gemini-3.6-flash-low` |
+| `-m, --model <name>` | Provider model | per provider (below) |
 | `-o, --output <path>` | Also write JSON to a file | |
 | `--prompt <text>` | Extra focus | |
 | `--timeout <ms>` | Provider timeout | `180000` |
+| `--provider-bin <path>` | Provider binary path | `agy` / `claude` |
+| `--workdir <path>` | Working directory for the provider | image's directory |
 
-Five providers: `antigravity-cli` (default, no key), `gemini-api` (fastest free route), `openai` (any OpenAI-compatible multimodal endpoint), `anthropic`, and `claude-cli` (rides your Claude subscription). Two more subcommands: `modlens config <init|set|show>` and `modlens recover-paste`.
+The default `-m` model depends on the provider:
+
+| Provider | Default model |
+| :-- | :-- |
+| `antigravity-cli` (default) | `gemini-3.6-flash-low` |
+| `gemini-api` | `gemini-3.6-flash` |
+| `anthropic` | `claude-haiku-4-5-20251001` |
+| `claude-cli` | `haiku` |
+| `openai` | none, `-m` is required |
+
+`modlens recover-paste`:
+
+| Flag | Meaning | Default |
+| :-- | :-- | :-- |
+| `--count <n>` | How many recent pasted images to recover | `1` |
+| `--out-dir <path>` | Where to write recovered images | `<tmpdir>/modlens-paste` |
+| `--session <id>` | Session id for exact targeting | auto-detect |
+| `--transcript <path>` | Explicit transcript `.jsonl` or `.db` (overrides `--session`) | |
+| `--harness <name>` | Force storage scope: `claude-code`, `pi`, `opencode`, `none` | auto-detect |
+| `--cwd <path>` | Project directory the image was pasted in | current directory |
+
+Five providers: `antigravity-cli` (default, no key), `gemini-api` (fastest free route), `openai` (any OpenAI-compatible multimodal endpoint), `anthropic`, and `claude-cli` (rides your Claude subscription). One more subcommand: `modlens config <init|set|show>`.
 
 ## Documentation
 

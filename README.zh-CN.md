@@ -83,9 +83,18 @@ modlens recover-paste                          # 把刚粘贴的图捞成文件
     "ocr": { "full_text": "/shaping\nBEFORE YOU BUILD\n...", "lines": [] },
     "layout": { "regions": [{ "reading_order": 1, "type": "title", "text": "/shaping" }] },
     "uncertainty": []
+  },
+  "meta": {
+    "generatedAt": "2026-08-06T12:00:00.000Z",
+    "model": "gemini-3.6-flash",
+    "conversationId": null,
+    "durationSeconds": 6.4,
+    "usage": { "promptTokenCount": 1234, "candidatesTokenCount": 567 }
   }
 }
 ```
+
+`meta` 记录这份结果是怎么来的：生成时间（`generatedAt`）、用的 `model`、provider 给的 `conversationId`（没有就是 null）、实际耗时 `durationSeconds`、以及 provider 报告的原始 `usage`（结构随 provider 而定，没有就是 null）。
 
 Codex 桌面 App 里的实拍：丢一张推文截图，纯文本的 DeepSeek 读出了配文、互动数据（2.9K 回复、270K 点赞、5M 浏览），连图片的 alt 文字都没放过。分辨率不够的地方它老实说读不清。
 
@@ -109,16 +118,41 @@ Codex 桌面 App 里的实拍：丢一张推文截图，纯文本的 DeepSeek �
 
 ## CLI 参数
 
+`modlens analyze`（默认命令）：
+
 | 参数 | 含义 | 默认值 |
 | :-- | :-- | :-- |
 | `-i, --input <path\|url>` | 要解析的图片（必填） | |
 | `-p, --provider <name>` | 视觉 provider | `antigravity-cli` |
-| `-m, --model <name>` | provider 模型 | `gemini-3.6-flash-low` |
+| `-m, --model <name>` | provider 模型 | 按 provider（见下） |
 | `-o, --output <path>` | 同时把 JSON 写入文件 | |
 | `--prompt <text>` | 额外关注点 | |
 | `--timeout <ms>` | provider 超时 | `180000` |
+| `--provider-bin <path>` | provider 可执行文件路径 | `agy` / `claude` |
+| `--workdir <path>` | provider 的工作目录 | 图片所在目录 |
 
-五个 provider 可选：`antigravity-cli`（默认，零 key）、`gemini-api`（最快的免费路线）、`openai`（任何 OpenAI 兼容多模态端点）、`anthropic`、`claude-cli`（吃你的 Claude 订阅）。另有 `modlens config <init|set|show>` 管配置，`modlens recover-paste` 抢救粘贴的图。
+`-m` 的默认模型取决于 provider：
+
+| Provider | 默认模型 |
+| :-- | :-- |
+| `antigravity-cli`（默认） | `gemini-3.6-flash-low` |
+| `gemini-api` | `gemini-3.6-flash` |
+| `anthropic` | `claude-haiku-4-5-20251001` |
+| `claude-cli` | `haiku` |
+| `openai` | 无默认，必须指定 `-m` |
+
+`modlens recover-paste`：
+
+| 参数 | 含义 | 默认值 |
+| :-- | :-- | :-- |
+| `--count <n>` | 恢复最近几张粘贴的图 | `1` |
+| `--out-dir <path>` | 恢复的图写到哪个目录 | `<tmpdir>/modlens-paste` |
+| `--session <id>` | 精确锁定的 session id | 自动检测 |
+| `--transcript <path>` | 显式指定 `.jsonl` 或 `.db`（优先于 `--session`） | |
+| `--harness <name>` | 强制存储范围：`claude-code`、`pi`、`opencode`、`none` | 自动检测 |
+| `--cwd <path>` | 图片是在哪个项目目录粘贴的 | 当前目录 |
+
+五个 provider 可选：`antigravity-cli`（默认，零 key）、`gemini-api`（最快的免费路线）、`openai`（任何 OpenAI 兼容多模态端点）、`anthropic`、`claude-cli`（吃你的 Claude 订阅）。另有 `modlens config <init|set|show>` 管配置。
 
 ## 文档
 

@@ -74,6 +74,13 @@ This should not happen any more, and if it does it is a bug worth reporting. Rec
 
 The output lists images oldest to newest, so the **last** entry is the most recent paste. Entries carry `filename` when the harness stored one: match on that when the user mentioned a name. `--count 3` gives you more to choose from.
 
+## recover-paste: overriding detection and output location
+
+`recover-paste` auto-detects which harness it runs inside (process ancestry first, then environment fingerprints) and reads only that harness's storage. Two knobs override it:
+
+- **`MODLENS_HARNESS`** forces the storage scope without a flag: `claude-code`, `pi`, `opencode`, `codex`, or `none` (scan every store, no scoping). Detection reads it first, so it wins over ancestry and env fingerprints. `--harness` does the same for a single run.
+- **`--out-dir`** sets where recovered images land. It defaults to `<tmpdir>/modlens-paste`, a 0700 directory holding 0600 files. Point it elsewhere when the system temp dir is not where you want the bytes.
+
 ## This is a Codex session
 
 ```
