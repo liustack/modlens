@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.7.4 - 2026-08-05
+
+Correctness and privacy pass after an external review (gpt-5.6-sol) that proved every finding with a probe.
+
+**Recovering the wrong project's images**
+
+- OpenCode directory matching passed the project path straight into SQL `LIKE`, where `_` and `%` are wildcards, so a path containing either matched other projects. Patterns are escaped now.
+- `--session <id>` dropped the directory condition entirely, and session slugs are not unique across projects. The reviewer found two colliding slugs in a real local database. A session now narrows the directory match instead of replacing it.
+- Claude Code and Pi directory slugs are lossy: `/tmp/project.alpha` and `/tmp/project-alpha` produce the same slug. Both harnesses record the real cwd inside the transcript, which is now checked before a transcript is trusted.
+
+**Privacy**
+
+- Recovered images landed as 0644 inside a 0755 directory, so on a shared `/tmp` any local user could read them. They are written 0600 into a 0700 directory, and re-chmodded because the filenames are content hashes and an existing file keeps its old mode.
+
+**Correctness**
+
+- A successful run could be reported as a timeout: the timer stayed armed while output drained, so a slow drain turned exit code 0 into a timeout error. It is cleared when the child exits.
+- A timeout sent one SIGTERM and then waited, so an engine ignoring signals hung the CLI. It now settles immediately and escalates to SIGKILL.
+- Output decoding kept no state across chunks, so a multi-byte character split across a chunk boundary became replacement characters.
+- The OpenCode "needs Node 22.5" message was swallowed by an empty catch, leaving only "no pasted images". Setup problems now travel with the error.
+- `--harness` was ignored when `--transcript` was given, so a copied Pi transcript was parsed as Claude Code. `--transcript <db>` also ignored `--cwd`.
+- Harness detection scanned the first eight command tokens, so a command that merely mentioned "pi" in its arguments was detected as Pi. Only the executable, plus the script path behind a node shim, is read now.
+- agy log evidence was accepted if the file was under two minutes old, which let a previous quota failure or a concurrent agy call misdiagnose an unrelated error. Evidence must now postdate the start of this run.
+- The `claude-cli` provider inherited a 30 second kill grace meant for agy's own `--print-timeout`, silently extending `--timeout`. The grace applies only to engines with an internal deadline.
+- The openai provider's "schema validation" accepted `{"summary":"x","ocr":null}` and anything missing layout, semantics, visual, or uncertainty. All required fields are checked.
+- Settings saved under a provider alias (`config set gemini.apiKey`) were invisible once the name resolved to `gemini-api`.
+- An unmapped image type was relabelled `.png`, so downstream tools reading the extension got the wrong type.
+- `ENOENT` from spawn was always reported as a missing CLI, even when the real cause was a missing working directory.
+- A config file that exists but cannot be read (permissions) silently became an empty config.
+
 ## 2.7.3 - 2026-08-05
 
 - Fix: a failing `antigravity-cli` run now explains itself instead of reporting a bare exit code ([#3](https://github.com/liustack/modlens/issues/3), thanks @mtongle). Providers gained a `describeFailure` hook, and the agy provider uses it to surface agy's own error text and classify the two failures users actually hit: a locked OS keyring in headless sessions (the report's case, where agy claims to be signed out) and an exhausted weekly quota. Both messages end with the exact commands to switch to a keyless, quota-independent provider. Diagnosis only reads agy's log when this run produced an agy error envelope and the log is fresh, so stale logs cannot misdiagnose an unrelated failure.

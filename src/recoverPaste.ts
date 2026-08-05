@@ -645,6 +645,13 @@ export function recoverPastedImages(options: RecoverOptions = {}): RecoverResult
         const ext = EXT_BY_MIME[image.mediaType] ?? extensionFromMediaType(image.mediaType);
         const filePath = path.join(outDir, `paste-${hash}.${ext}`);
         fs.writeFileSync(filePath, buffer, { mode: 0o600 });
+        try {
+            // writeFileSync only applies mode when creating, and these names are
+            // content hashes, so a file recovered before this fix keeps 0644.
+            fs.chmodSync(filePath, 0o600);
+        } catch {
+            // best effort on platforms without chmod
+        }
         const recovered: RecoveredImage = {
             path: filePath,
             mediaType: image.mediaType,
