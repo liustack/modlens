@@ -676,7 +676,16 @@ function registerVisionProvider(ctx, config, ownProviders, evidenceCache) {
     // to contain the word cannot veto the text model behind it.
     const unaliased = id.replace(/^~/, '')
     const bare = unaliased.slice(unaliased.lastIndexOf('/') + 1)
-    if (!families.some((family) => id.startsWith(family) || bare.startsWith(family))) return false
+    const matchesFamily = families.some(
+      (family) => family !== '*' && (id.startsWith(family) || bare.startsWith(family)),
+    )
+    if (!matchesFamily) {
+      // Opting into all families is not evidence that an unknown model is
+      // text-only. Outside an explicitly named family, require the catalog
+      // to declare text input. The image and native-name vetoes still apply.
+      if (!families.includes('*') || !Array.isArray(info?.inputModalities) || !info.inputModalities.includes('text'))
+        return false
+    }
     if (VISION_ID.test(bare)) return false
     if (Array.isArray(info?.inputModalities) && info.inputModalities.includes('image')) return false
     // MiMo needs the gate reversed. Xiaomi's bare version ids name native

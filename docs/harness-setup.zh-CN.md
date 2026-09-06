@@ -60,6 +60,49 @@ npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.25.4
 
 这会注册一个 `modlens_read_image` 工具，它的 schema 随每次请求抵达模型（不靠触发启发式），运行同一个包里自带的 modlens CLI，并把结构化证据作为工具的标准 JSON 输出返回。引擎、复用授权和 guard 规则仍在 `~/.modlens/config.json` 里，与其他所有 harness 共享。dsh 还在开发者预览阶段，插件接口可能变化。这个插件刻意保持很小的接触面（原生工具注册、视觉变体所用的 llm 适配层、附件读取器，以及一个 agent 执行前钩子），其中任何一处变动，它都会大声报错而不是无声退化。
 
+### 第三方文本模型
+
+视觉桥接不限于 DeepSeek 官方 API。默认会自动发现所有已注册 provider 中符合条件的
+`deepseek`、`glm`、`mimo` 模型 ID，包括第三方转发渠道。选择带有
+`(modlens vision)` 的 provider 分组下的模型，粘贴、拖拽图片和附件按钮就会走
+DSH 原生附件流程，在调用文本模型前转成证据文本。
+
+需要接入其他文本模型时，编辑当前 profile 的
+`$DSH_HOME/profiles/<name>/cordis.patch.yml`。`DSH_HOME` 默认是 `~/.dsh`。
+按已安装插件的 ID 添加覆盖项，不要再写一条 `insert`：
+
+```yaml
+- id: modlens
+  config:
+    families: ['*']
+    discover: ['openrouter', 'nvidia', 'ark-deepseek']
+```
+
+`discover` 填实际注册的 provider ID，不是界面展示名。省略它则检查全部已注册渠道。
+保留文件中已有的其他配置项。这是 DSH 插件配置，不是 `~/.modlens/config.json`，
+后者配置的是实际读取图片的视觉引擎。
+
+`families: ['*']` 需要主动开启。上游模型元数据的 `inputModalities` 必须明确包含
+`text` 且不包含 `image`，缺失或空数组都不会自动获得变体。原有视觉模型名称排除规则
+仍然生效，MiMo 仍须带有 `-pro` 段。原生视觉模型应在上游配置中正确声明 `image`，
+并使用原模型条目。
+
+也可以缩小到明确的小写模型 ID 前缀，例如
+`families: ['deepseek', 'glm', 'mimo', 'ling', 'qwen']`。该列表会替换默认值。
+前缀既匹配完整模型 ID，也匹配移除开头的 `~` 和厂商命名空间后的 ID。
+显式前缀保留原有行为，元数据缺失时也能匹配，因此只添加已确认是文本模型的前缀。
+声明支持图片的模型和命中原有视觉排除规则的模型仍不会获得变体。
+
+检查最终配置，重启 DSH，再选择变体：
+
+```sh
+npx -y @deepseek-ai/dsh --profile <name> --dump-config
+```
+
+第三方 DeepSeek 没有出现变体时，检查该 profile 的插件版本、实际模型 ID 而非展示名、
+是否有 `upstream` 或 `discover` 限制，以及上游声明的输入能力。
+配置了 `upstream` 时沿用单渠道模式，不进行自动发现。
+
 ### 在网页界面里配置引擎
 
 dsh 的网页用户面前没有终端，所以引擎设置有一张卡片，在**设置 → 插件 → 插件配置**里：用哪个引擎读图、它的密钥、地址、模型和代理方式，以及一次读取可以借用本机哪些已有登录。展开时会探测本机，只列出真正找到的 harness，让授权是在真实选项之间做选择，而不是面对五个名字。

@@ -60,6 +60,55 @@ npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.25.4
 
 This registers a `modlens_read_image` tool whose schema reaches the model on every request (no trigger heuristics), runs the modlens CLI shipped inside the same package, and returns the structured evidence as the tool's canonical JSON output. Engines, reuse grants, and guard rules stay in `~/.modlens/config.json`, shared with every other harness. dsh is in developer preview and its plugin surface may change; the plugin keeps its touch small (raw tool registration, the llm adapter surface for the vision variants, the attachment reader, and one agent pre-step hook) and degrades loudly if any of them moves.
 
+### Third-party text models
+
+The vision bridge is not restricted to the official DeepSeek API. By default,
+modlens discovers every registered provider carrying eligible `deepseek`, `glm`
+or `mimo` model IDs, including third-party routes. Select the model under the
+provider group marked `(modlens vision)` to use it. Pasting, dragging an image
+or using dsh's attachment button then follows the host's normal attachment
+flow, with images converted to evidence before the text model is called.
+
+To include other text models, edit the active profile's
+`$DSH_HOME/profiles/<name>/cordis.patch.yml` (`DSH_HOME` defaults to `~/.dsh`).
+Add an override for the installed plugin's existing ID, not another `insert`:
+
+```yaml
+- id: modlens
+  config:
+    families: ['*']
+    discover: ['openrouter', 'nvidia', 'ark-deepseek']
+```
+
+Use the actual registered provider IDs in `discover`, not their display names.
+Omit `discover` to inspect all registered routes. Keep any other patch entries
+already in the file. This is dsh plugin configuration, not
+`~/.modlens/config.json`, which configures the engine reading the image.
+
+`families: ['*']` is opt-in. It requires the upstream model metadata to explicitly
+include `text` in `inputModalities` and exclude `image`. Unknown or empty
+modalities do not qualify. Existing native-vision name exclusions still apply,
+and MiMo still requires a `-pro` segment. Native vision models should declare
+`image` in their upstream configuration and use their original entry.
+
+For a narrower selection, set explicit lowercase model-ID prefixes, for example
+`families: ['deepseek', 'glm', 'mimo', 'ling', 'qwen']`. This replaces the default
+list. Prefixes match both the full model ID and the ID after removing a leading
+`~` and its vendor namespace. Explicit prefixes retain the existing behavior
+when modalities are absent, so use them only for models you know are text-only.
+Declared image input and the native-vision exclusions still veto the wrapper.
+
+Check the composed configuration, restart dsh, then select the wrapper entry:
+
+```sh
+npx -y @deepseek-ai/dsh --profile <name> --dump-config
+```
+
+If a third-party DeepSeek entry is missing, check the plugin version in that
+profile, the actual model ID rather than its display name, any `upstream` or
+`discover` restriction, and the model's declared modalities. A configured
+`upstream` keeps single-route mode instead of discovery.
+
 ### Configuring the engine from the web UI
 
 dsh web users have no terminal in front of them, so the engine settings have a
