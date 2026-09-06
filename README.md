@@ -49,13 +49,22 @@ A hotkey that captures the screen into DeepSeek Harness is a separate plugin: [d
 
 ## Install in other harnesses
 
-**Step 1, hand it to your AI.** Send it this line:
+**Option 1, install with [skills.sh](https://skills.sh/):**
+
+```bash
+npx -y skills add liustack/modlens --skill modlens --global
+```
+
+This installs the `modlens` skill at user level. Restart the harness, then ask
+your AI to configure modlens and run its health check.
+
+**Option 2, hand the install to your AI.** Send it this line:
 
 > Install and configure the modlens skill following https://github.com/liustack/modlens/blob/main/INSTALL.md, then run the health check and tell me the result.
 
 The install starts by checking what your machine already has. An existing login in Claude Code, Codex, OpenCode, or Pi can be enough: modlens asks before reusing any of them, and the health check tells you where things stand.
 
-**Step 2, only if the health check comes back empty, set up a free engine.** The recommended choice is a free Gemini API key (about three minutes at [Google AI Studio](https://aistudio.google.com), no credit card), which also makes every read 5-10 seconds. A free OpenAI-compatible key from another platform works too. To avoid any sign-up, install Antigravity CLI instead, then sign in:
+**After either option, only if the health check comes back empty, set up a free engine.** The recommended choice is a free Gemini API key (about three minutes at [Google AI Studio](https://aistudio.google.com), no credit card), which also makes every read 5-10 seconds. A free OpenAI-compatible key from another platform works too. To avoid any sign-up, install Antigravity CLI instead, then sign in:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash

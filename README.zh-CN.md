@@ -53,13 +53,22 @@ DeepSeek Harness 粘贴识图有两种玩法。
 
 ## 在其他 Harness 中安装
 
-**第一步，交给你的 AI。** 把这句话发给它：
+**方式一，通过 [skills.sh](https://skills.sh/) 一条命令安装：**
+
+```bash
+npx -y skills add liustack/modlens --skill modlens --global
+```
+
+这会把 `modlens` skill 安装到用户级目录。重启 Harness 后，让 AI 配置
+modlens 并运行体检即可。
+
+**方式二，把安装交给你的 AI。** 把这句话发给它：
 
 > 按 https://github.com/liustack/modlens 的 INSTALL.md 安装并配置 modlens skill，完成后运行体检并把结果告诉我。
 
 安装会先盘点你机器上已有的东西。Claude Code、Codex、OpenCode 或 Pi 里任何一个已有的登录态都可能就够了：modlens 复用前一定先征得你同意，体检报告会说清现状。
 
-**第二步，只在体检两手空空时，才需要你配一个免费引擎。** 推荐免费的 Gemini api key（到 [Google AI Studio](https://aistudio.google.com) 领取，约三分钟，无需信用卡），配上后每次识别 5 到 10 秒。其他平台的免费 openai 兼容 key 也行。想完全免注册就装 Antigravity CLI，然后完成登录：
+**两种方式完成后，只在体检两手空空时，才需要你配一个免费引擎。** 推荐免费的 Gemini api key（到 [Google AI Studio](https://aistudio.google.com) 领取，约三分钟，无需信用卡），配上后每次识别 5 到 10 秒。其他平台的免费 openai 兼容 key 也行。想完全免注册就装 Antigravity CLI，然后完成登录：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash

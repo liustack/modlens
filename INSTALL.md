@@ -114,10 +114,11 @@ refreshes the skill.
 
 ### Path B: the skills CLI (third party)
 
-`skills` is a third-party CLI for installing agent skills. It is not required.
+[`skills`](https://skills.sh/) is a third-party CLI for installing agent skills.
+It is not required.
 
 ```bash
-npx -y skills add liustack/modlens
+npx -y skills add liustack/modlens --skill modlens --global
 ```
 
 **If it fails** (the command is unavailable, or it does not place the folder under
