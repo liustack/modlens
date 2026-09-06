@@ -13,6 +13,8 @@ modlens config init                     # 写入一份起步配置（已存在�
 modlens config show                     # 生效的配置文件，API key 打码显示
 modlens config set provider <name>      # 更改默认 provider
 modlens config set <provider>.<field> <value>   # 字段：apiKey、baseUrl、model、proxy、extraBody、structuredOutput
+modlens config set proxy http://127.0.0.1:7890          # 所有 API provider 的默认代理
+modlens config set openai.proxy ""                      # 让一个 provider 强制直连
 ```
 
 `config set` 写文件时权限为 0600。
@@ -66,6 +68,8 @@ modlens config set <provider>.<field> <value>   # 字段：apiKey、baseUrl、mo
 
 - `provider`：不传 `-p` 时由哪个 provider 执行。标准名和别名都行（`agy`/`antigravity` 对应 `antigravity-cli`，`gemini` 对应 `gemini-api`，`openai-compat` 对应 `openai`，`claude` 对应 `anthropic`，`kimi`/`kimi-code` 对应 `kimi-cli`，`claude-code` 对应 `claude-cli`）。留空或缺失表示不钉任何一个：由失败切换链决定，已配置的 API provider 先于 agent CLI 被尝试。
 - `cooldown`：`'on'`（默认）或 `'off'`。打开时，配额耗尽的密钥会记入 `~/.modlens/state.json`，恢复前放到队尾再试（默认 45 分钟，月度 HTTP 432/433 为 24 小时，引擎回报的 `Resets in` 子句优先）。关闭时不读也不写那个文件。`modlens state clear` 会忘掉全部冷却。
+- `proxy`：所有 API provider 的默认代理。它缺失时改由 `HTTPS_PROXY` 或 `HTTP_PROXY` 提供默认值，环境变量路线会遵守 `NO_PROXY`。
+- `providers.<name>.proxy`：有三种状态。字段缺失表示继承上述默认值，空字符串表示强制直连，非空 URL 表示只给这个 provider 使用的代理。这样共享代理失效时，内网端点仍然可以直连。要恢复继承，删除配置文件中的这个字段，或在 dsh 设置卡中选择继承。`config show` 会把空值显示成 `direct`，设置卡会提供三种选择，而且不会把已保存的代理地址发送给浏览器。
 - `providers.<name>.<field>`：共六个字段，`apiKey`、`baseUrl`、`model`、`proxy`、`extraBody`、`structuredOutput`（仅 openai 路线）。每个 provider 条目都可选，条目里的每个字段也都可选。别名键同样会被读取（存在 `gemini` 下的设置在解析到 `gemini-api` 时也能找到），冲突时标准键胜出。`apiKey` 接受英文逗号分隔的列表。请求按配置顺序使用，只在鉴权、限流或配额失败后轮换。其他失败会跳过剩余密钥，并继续走现有的 provider 故障转移。
 - `providers.<name>.extraBody`：一个 JSON 对象，合并进 API provider（`gemini-api`、`openai`、`anthropic`）的请求体，用来传厂商有而 modlens 没有对应参数的开关。最常见的用途是关掉思考，见下文小节。嵌套对象逐键合并，所以加一个开关不会动到该块里的其他内容。承载图片、提示词和各路线自身强制机制的字段会被拒绝，报错会点名该字段。`openai` 路线上的 `response_format` 不在此列：在那里设置它就是有意替换掉 modlens 本来会发的那份 schema。三个 CLI provider 不发请求体，所以在 `antigravity-cli`、`claude-cli` 或 `kimi-cli` 上运行时它会被忽略，并在 `meta.warnings` 里说明。
 - `providers.openai.structuredOutput`：设为 `true` 时，让 OpenAI 兼容网关自己强制执行视觉契约，以 `response_format: json_schema` 的严格形式发出。默认关闭，因为不支持结构化输出的网关会对这个字段返回 400。你在 `extraBody` 里设的 `response_format` 优先级更高。

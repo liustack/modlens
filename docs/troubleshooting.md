@@ -230,7 +230,14 @@ in either form:
 HTTPS_PROXY=http://127.0.0.1:7890 modlens -i shot.png -p gemini-api   # env (NO_PROXY honored too)
 modlens config set proxy http://127.0.0.1:7890                        # persistent, all API providers
 modlens config set openai.proxy http://127.0.0.1:7890                 # one provider only
+modlens config set openai.proxy ""                                    # this provider connects directly
 ```
+
+The provider field has three states. Missing inherits the shared config or
+environment proxy, an empty string means direct, and a URL is a provider-only
+proxy. This matters when an internet provider needs the shared proxy but an
+internal endpoint must stay direct. Failover still tries both providers, but a
+shared dead proxy otherwise makes both attempts fail the same way.
 
 The proxy applies to API provider requests only. The remote-image download
 path keeps its direct, IP-pinned connection on purpose: its SSRF guards

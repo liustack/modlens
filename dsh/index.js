@@ -1642,9 +1642,10 @@ function readModlensConfig() {
 }
 
 /**
- * What the card is allowed to know. Every engine's endpoint and model, plus
- * whether a key is stored, and never the key itself: a browser that cannot
- * read a secret cannot leak one, and cannot write it back either.
+ * What the card is allowed to know. Every engine's endpoint, model and proxy
+ * mode, plus whether a key is stored. Neither keys nor proxy URLs cross into
+ * the browser: both can carry credentials, and a browser that cannot read a
+ * secret cannot leak one or write it back accidentally.
  */
 function engineSummary(config = readModlensConfig()) {
   const engines = {}
@@ -1663,6 +1664,11 @@ function engineSummary(config = readModlensConfig()) {
       baseUrl: typeof settings.baseUrl === 'string' ? settings.baseUrl : '',
       model: typeof settings.model === 'string' ? settings.model : '',
       hasKey: hasApiKeys(settings.apiKey),
+      proxyMode: !Object.hasOwn(settings, 'proxy')
+        ? 'inherit'
+        : typeof settings.proxy === 'string' && settings.proxy.trim() === ''
+          ? 'direct'
+          : 'custom',
       // '' means neither source holds anything, which is not the same as the
       // file holding an empty entry: that one is already off its variables.
       source: inFile ? 'file' : Object.keys(settings).length > 0 ? 'env' : '',
@@ -1687,7 +1693,7 @@ function engineSummary(config = readModlensConfig()) {
 
 /**
  * Apply one card submission to the shared file. Only the named engine's own
- * three fields are touched, so switching engines in the card cannot copy one
+ * fields are touched, so switching engines in the card cannot copy one
  * engine's endpoint onto another. An absent or empty `apiKey` leaves the
  * stored one alone: the card never receives a key, so it must never be able
  * to clear one by submitting the blank field it was shown.
@@ -1734,6 +1740,7 @@ function applyEngineSettings(patch) {
     const seed = holders.length > 0 ? {} : engineEnvSettings(engine)
     const settings = { ...seed, ...config.providers[target] }
     for (const field of ['baseUrl', 'model']) {
+      if (!Object.hasOwn(patch, field)) continue
       const value = typeof patch[field] === 'string' ? patch[field].trim() : ''
       if (value === '') {
         delete settings[field]
@@ -1744,6 +1751,36 @@ function applyEngineSettings(patch) {
     const apiKey = typeof patch.apiKey === 'string' ? patch.apiKey.trim() : ''
     if (apiKey !== '') {
       settings.apiKey = apiKey
+    }
+    if (Object.hasOwn(patch, 'proxyMode')) {
+      if (patch.proxyMode === 'inherit') {
+        // Absence is the inheritance signal. Remove the field from every
+        // alias-backed entry or an older alias value resurfaces when settings
+        // are merged, even after the canonical entry says it was cleared.
+        for (const holder of holders) {
+          const stored = config.providers[holder]
+          if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+            delete stored.proxy
+          }
+        }
+        delete settings.proxy
+      } else if (patch.proxyMode === 'direct') {
+        settings.proxy = ''
+      } else if (patch.proxyMode === 'custom') {
+        const proxy = typeof patch.proxy === 'string' ? patch.proxy.trim() : ''
+        if (proxy !== '') {
+          settings.proxy = proxy
+        } else {
+          // The card reports the merged route, which may live under an alias
+          // while the canonical entry owns only the model or endpoint.
+          const storedProxy = Object.assign({}, ...holders.map((key) => config.providers[key])).proxy
+          if (typeof storedProxy !== 'string' || storedProxy.trim() === '') {
+            throw new Error('custom proxy mode needs a proxy URL')
+          }
+        }
+      } else {
+        throw new Error(`unknown proxy mode: ${patch.proxyMode}`)
+      }
     }
     config.providers[target] = settings
   }

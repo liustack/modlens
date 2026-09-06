@@ -3891,6 +3891,31 @@ describe('settings card route (#39)', () => {
         );
     });
 
+    it('reports each proxy mode without putting a stored proxy URL on the wire (#97)', async () => {
+        await withConfig(
+            {
+                proxy: 'http://global-user:global-pass@global-proxy.example:8080',
+                providers: {
+                    openai: {
+                        apiKey: 'sk-a',
+                        proxy: 'http://proxy-user:proxy-pass@private-proxy.example:8080',
+                    },
+                    'gemini-api': { apiKey: 'sk-b', proxy: '' },
+                    anthropic: { apiKey: 'sk-c' },
+                },
+            },
+            async (handler) => {
+                const { status, body } = await call(handler, { method: 'GET', url: '/x' });
+                expect(status).toBe(200);
+                expect(JSON.stringify(body)).not.toContain('private-proxy.example');
+                const engines = body.engines as Record<string, { proxyMode: string }>;
+                expect(engines.openai.proxyMode).toBe('custom');
+                expect(engines['gemini-api'].proxyMode).toBe('direct');
+                expect(engines.anthropic.proxyMode).toBe('inherit');
+            },
+        );
+    });
+
     it('keeps the stored key when the card submits the blank field it was shown', async () => {
         await withConfig(
             { provider: 'openai', providers: { openai: { apiKey: 'sk-secret', model: 'old' } } },
@@ -3910,6 +3935,174 @@ describe('settings card route (#39)', () => {
                 expect(saved.providers.openai.model).toBe('new');
             },
         );
+    });
+
+    it('stores an explicit direct route without changing the engine credentials (#97)', async () => {
+        await withConfig(
+            {
+                proxy: 'http://127.0.0.1:7890',
+                providers: {
+                    openai: { apiKey: 'sk-secret', baseUrl: 'http://intranet.example/v1' },
+                },
+            },
+            async (handler, file) => {
+                const { status } = await call(handler, {
+                    method: 'POST',
+                    url: '/x',
+                    [Symbol.asyncIterator]: async function* () {
+                        yield Buffer.from(
+                            JSON.stringify({ engine: 'openai', proxyMode: 'direct' }),
+                        );
+                    },
+                });
+                expect(status).toBe(200);
+                const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+                expect(saved.providers.openai).toEqual({
+                    apiKey: 'sk-secret',
+                    baseUrl: 'http://intranet.example/v1',
+                    proxy: '',
+                });
+            },
+        );
+    });
+
+    it('removes the provider override when the card returns to inherited proxy routing (#97)', async () => {
+        await withConfig(
+            {
+                proxy: 'http://127.0.0.1:7890',
+                providers: {
+                    openai: {
+                        apiKey: 'sk-secret',
+                        proxy: 'http://user:pass@provider-proxy.example:8080',
+                    },
+                },
+            },
+            async (handler, file) => {
+                const { status } = await call(handler, {
+                    method: 'POST',
+                    url: '/x',
+                    [Symbol.asyncIterator]: async function* () {
+                        yield Buffer.from(
+                            JSON.stringify({ engine: 'openai', proxyMode: 'inherit' }),
+                        );
+                    },
+                });
+                expect(status).toBe(200);
+                const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+                expect(saved.providers.openai).toEqual({ apiKey: 'sk-secret' });
+            },
+        );
+    });
+
+    it('removes inherited proxy overrides from every alias-backed entry (#97)', async () => {
+        await withConfig(
+            {
+                providers: {
+                    'openai-compat': {
+                        apiKey: 'sk-secret',
+                        proxy: 'http://user:pass@provider-proxy.example:8080',
+                    },
+                    openai: { model: 'canonical-model' },
+                },
+            },
+            async (handler, file) => {
+                const { status } = await call(handler, {
+                    method: 'POST',
+                    url: '/x',
+                    [Symbol.asyncIterator]: async function* () {
+                        yield Buffer.from(
+                            JSON.stringify({ engine: 'openai', proxyMode: 'inherit' }),
+                        );
+                    },
+                });
+                expect(status).toBe(200);
+                const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+                expect(saved.providers['openai-compat']).toEqual({ apiKey: 'sk-secret' });
+                expect(saved.providers.openai).toEqual({ model: 'canonical-model' });
+
+                const read = await call(handler, { method: 'GET', url: '/x' });
+                const engines = read.body.engines as Record<string, { proxyMode: string }>;
+                expect(engines.openai.proxyMode).toBe('inherit');
+            },
+        );
+    });
+
+    it('replaces a stored custom proxy only when the card submits a new URL (#97)', async () => {
+        await withConfig(
+            {
+                providers: {
+                    openai: {
+                        apiKey: 'sk-secret',
+                        proxy: 'http://old-user:old-pass@old-proxy.example:8080',
+                    },
+                },
+            },
+            async (handler, file) => {
+                const unchanged = await call(handler, {
+                    method: 'POST',
+                    url: '/x',
+                    [Symbol.asyncIterator]: async function* () {
+                        yield Buffer.from(
+                            JSON.stringify({
+                                engine: 'openai',
+                                model: 'm',
+                                proxyMode: 'custom',
+                                proxy: '',
+                            }),
+                        );
+                    },
+                });
+                expect(unchanged.status).toBe(200);
+                let saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+                expect(saved.providers.openai.proxy).toBe(
+                    'http://old-user:old-pass@old-proxy.example:8080',
+                );
+
+                const replaced = await call(handler, {
+                    method: 'POST',
+                    url: '/x',
+                    [Symbol.asyncIterator]: async function* () {
+                        yield Buffer.from(
+                            JSON.stringify({
+                                engine: 'openai',
+                                proxyMode: 'custom',
+                                proxy: 'http://new-user:new-pass@new-proxy.example:8080',
+                            }),
+                        );
+                    },
+                });
+                expect(replaced.status).toBe(200);
+                saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+                expect(saved.providers.openai.proxy).toBe(
+                    'http://new-user:new-pass@new-proxy.example:8080',
+                );
+            },
+        );
+    });
+
+    it('keeps a custom proxy stored under an alias when the canonical entry holds other fields (#97)', async () => {
+        const config = {
+            providers: {
+                'openai-compat': {
+                    apiKey: 'sk-secret',
+                    proxy: 'http://proxy.example:8080',
+                },
+                openai: { model: 'canonical-model' },
+            },
+        };
+        await withConfig(config, async (handler, file) => {
+            const { status, body } = await call(handler, {
+                method: 'POST',
+                url: '/x',
+                [Symbol.asyncIterator]: async function* () {
+                    yield Buffer.from(
+                        JSON.stringify({ engine: 'openai', proxyMode: 'custom', proxy: ' ' }),
+                    );
+                },
+            });
+            expect(status, JSON.stringify(body)).toBe(200);
+            expect(JSON.parse(fs.readFileSync(file, 'utf-8'))).toEqual(config);
+        });
     });
 
     it('writes only the engine it was given, never the one before it', async () => {

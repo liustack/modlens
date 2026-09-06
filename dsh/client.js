@@ -196,6 +196,14 @@ window.__ModuleLoader__.load({
           'Separate multiple keys with commas. ModLens rotates to the next key after authentication, rate-limit, or quota failures.',
         baseUrl: 'Base URL',
         model: 'Model',
+        proxyRoute: 'Proxy route',
+        proxyInherit: 'Inherit global or environment proxy',
+        proxyDirect: 'Direct connection',
+        proxyCustom: 'Custom proxy',
+        proxyUrl: 'Proxy URL',
+        proxyStored: 'stored, leave empty to keep it',
+        proxyExample: 'http://127.0.0.1:7890',
+        proxyHint: 'Direct ignores the global proxy and HTTP_PROXY / HTTPS_PROXY.',
         stored: 'stored, leave empty to keep it',
         unset: 'not set',
         fallback: 'provider default',
@@ -224,6 +232,14 @@ window.__ModuleLoader__.load({
         apiKeyHint: '多个密钥用英文逗号分隔。鉴权、限流或配额失败时会自动轮换到下一个密钥。',
         baseUrl: '接口地址',
         model: '模型',
+        proxyRoute: '代理方式',
+        proxyInherit: '继承全局代理或环境变量',
+        proxyDirect: '直连',
+        proxyCustom: '使用专属代理',
+        proxyUrl: '代理地址',
+        proxyStored: '已保存，留空即不改动',
+        proxyExample: 'http://127.0.0.1:7890',
+        proxyHint: '直连会忽略全局代理与 HTTP_PROXY / HTTPS_PROXY。',
         stored: '已保存，留空即不改动',
         unset: '未设置',
         fallback: '使用该引擎默认值',
@@ -266,8 +282,8 @@ window.__ModuleLoader__.load({
       return detail || fallback
     }
 
-    // The next draft when the engine changes or a summary arrives. The three
-    // engine fields belong to the newly selected engine; the reuse grants are
+    // The next draft when the engine changes or a summary arrives. The engine
+    // fields belong to the newly selected engine; the reuse grants are
     // the user's pending answers and survive an engine switch, since granting
     // codex has nothing to do with which engine reads the images.
     function nextDraft(summary, provider, keepReuse) {
@@ -280,6 +296,10 @@ window.__ModuleLoader__.load({
         apiKey: '',
         baseUrl: engine.baseUrl,
         model: engine.model,
+        proxyMode: engine.proxyMode || 'inherit',
+        // A proxy URL can carry credentials, so the host reports only its
+        // mode. Blank means keep the stored custom URL unless one is typed.
+        proxy: '',
         reuse: Object.assign({}, keepReuse || summary.reuse),
       }
     }
@@ -299,42 +319,57 @@ window.__ModuleLoader__.load({
         payload.provider = draft.provider
       }
       var pristine = nextDraft(summary, draft.provider, draft.reuse)
-      var engineEdited = draft.apiKey !== '' || draft.baseUrl !== pristine.baseUrl || draft.model !== pristine.model
+      var apiKey = draft.apiKey || ''
+      var baseUrl = draft.baseUrl || ''
+      var model = draft.model || ''
+      var proxyMode = draft.proxyMode || 'inherit'
+      var proxy = draft.proxy || ''
+      var apiKeyEdited = apiKey !== ''
+      var baseUrlEdited = baseUrl !== pristine.baseUrl
+      var modelEdited = model !== pristine.model
+      var proxyEdited = proxyMode !== pristine.proxyMode || proxy !== ''
+      var engineEdited = apiKeyEdited || baseUrlEdited || modelEdited || proxyEdited
       if (draft.provider !== '' && engineEdited) {
         payload.engine = draft.provider
-        payload.apiKey = draft.apiKey
-        payload.baseUrl = draft.baseUrl
-        payload.model = draft.model
+        if (apiKeyEdited) payload.apiKey = apiKey
+        if (baseUrlEdited) payload.baseUrl = baseUrl
+        if (modelEdited) payload.model = model
+        if (proxyEdited) {
+          payload.proxyMode = proxyMode
+          // Once the route is inherit or direct, a custom URL is irrelevant
+          // and may contain credentials. Do not put stale input on the wire.
+          payload.proxy = proxyMode === 'custom' ? proxy : ''
+        }
       }
       return payload
     }
 
     /**
-     * How to render the API key field so the characters are hidden.
+     * How to render key and proxy credential fields with hidden characters.
      *
      * A real password input makes Safari's iCloud Keychain offer to enable
      * autofill for the site and then pop its bubble on every focus, for a
-     * field that is always empty: the key lives in the config file and the
+     * field that is always empty: the secret lives in the config file and the
      * host never sends it here, only whether one is stored. `autocomplete`
      * cannot turn that off, because WebKit ignores it on password fields on
      * purpose (issue #56). Masking with text-security gets the same hidden
-     * characters without ever being a password field, and it also keeps a key
-     * meant for one machine out of a synced keychain.
+     * characters without ever being a password field, and it also keeps a
+     * machine-local secret out of a synced keychain.
      *
      * Feature-detected rather than assumed. Where the property is missing the
      * field stays a password input: the nuisance is worth more than the
-     * alternative, which is somebody's API key rendered in clear text while
-     * they type it.
+     * alternative, which is somebody's credential rendered in clear text
+     * while they type it.
      *
      * This is a trade, not a free win, and the cost falls on people who are
      * not in the room. A password input carries a protected state into the
      * accessibility tree, and screen readers stop reading characters back
      * because of it. Masking is only paint: VoiceOver and NVDA will read this
-     * key aloud, and ARIA has no equivalent to restore. Selection and copy
+     * secret aloud, and ARIA has no equivalent to restore. Selection and copy
      * also become possible, and an IME candidate window shows what is being
      * typed above the field. Accepted here because the field is empty in
-     * normal use (the key lives in the config file and is never sent to the
-     * browser), so what a screen reader can read back is what the user is
+     * normal use (the stored value is never sent to the browser), so what a
+     * screen reader can read back is what the user is
      * typing at that moment, not a stored secret.
      */
     /**
@@ -549,7 +584,13 @@ window.__ModuleLoader__.load({
               draft.apiKey !== '' ||
               draft.baseUrl !== pristine.baseUrl ||
               draft.model !== pristine.model ||
+              draft.proxyMode !== pristine.proxyMode ||
+              draft.proxy !== '' ||
               REUSE.some((name) => draft.reuse[name] !== summary.reuse[name])
+            var customProxyMissing =
+              draft.proxyMode === 'custom' && current.proxyMode !== 'custom' && draft.proxy.trim() === ''
+            var canDiscard = dirty && note !== t.saving
+            var canSave = canDiscard && !customProxyMissing
 
             var set = (key, value) => {
               var next = Object.assign({}, draft)
@@ -699,6 +740,55 @@ window.__ModuleLoader__.load({
                   ),
               draft.provider === '' || keyless ? null : textField(t.baseUrl, 'baseUrl', 'text', t.fallback),
               draft.provider === '' ? null : textField(t.model, 'model', 'text', t.fallback),
+              draft.provider === '' || keyless
+                ? null
+                : fieldRow(
+                    t.proxyRoute,
+                    h(
+                      'select',
+                      {
+                        name: 'proxyMode',
+                        value: draft.proxyMode,
+                        onChange: (event) => set('proxyMode', event.target.value),
+                        style: {
+                          appearance: 'none',
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.35))',
+                          background: 'transparent',
+                          color: 'inherit',
+                          font: 'inherit',
+                          fontSize: '13px',
+                        },
+                      },
+                      [
+                        h('option', { key: 'inherit', value: 'inherit' }, t.proxyInherit),
+                        h('option', { key: 'direct', value: 'direct' }, t.proxyDirect),
+                        h('option', { key: 'custom', value: 'custom' }, t.proxyCustom),
+                      ],
+                    ),
+                    'proxy-mode',
+                  ),
+              draft.provider === '' || keyless
+                ? null
+                : fieldRow(
+                    '',
+                    h(
+                      'div',
+                      {
+                        style: {
+                          fontSize: '13px',
+                          color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
+                        },
+                      },
+                      t.proxyHint,
+                    ),
+                    'proxy-hint',
+                  ),
+              draft.provider === '' || keyless || draft.proxyMode !== 'custom'
+                ? null
+                : secretField(t.proxyUrl, 'proxy', current.proxyMode === 'custom' ? t.proxyStored : t.proxyExample),
               // Where these values are coming from, said once, because the
               // first save moves them: an engine the file names takes its
               // settings from the file alone.
@@ -794,7 +884,7 @@ window.__ModuleLoader__.load({
                   'button',
                   {
                     type: 'button',
-                    disabled: !dirty || note === t.saving,
+                    disabled: !canDiscard,
                     onClick: () => {
                       draftState[1](seed(summary, summary.provider))
                       noteState[1]('')
@@ -804,13 +894,13 @@ window.__ModuleLoader__.load({
                       font: 'inherit',
                       fontSize: '13px',
                       lineHeight: 1.5,
-                      cursor: dirty ? 'pointer' : 'default',
+                      cursor: canDiscard ? 'pointer' : 'default',
                       border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.35))',
                       borderRadius: '8px',
                       padding: '5px 14px',
                       background: 'none',
                       color: 'var(--dsw-alias-label-secondary, inherit)',
-                      opacity: dirty ? 1 : 0.4,
+                      opacity: canDiscard ? 1 : 0.4,
                     },
                   },
                   t.discard,
@@ -819,7 +909,7 @@ window.__ModuleLoader__.load({
                   'button',
                   {
                     type: 'button',
-                    disabled: !dirty || note === t.saving,
+                    disabled: !canSave,
                     onClick: () => {
                       noteState[1](t.saving)
                       var payload = savePayload(summary, draft)
@@ -856,13 +946,13 @@ window.__ModuleLoader__.load({
                       font: 'inherit',
                       fontSize: '13px',
                       lineHeight: 1.5,
-                      cursor: dirty ? 'pointer' : 'default',
+                      cursor: canSave ? 'pointer' : 'default',
                       border: '1px solid transparent',
                       borderRadius: '8px',
                       padding: '5px 14px',
                       background: 'var(--dsw-alias-label-primary, currentColor)',
                       color: 'var(--dsw-alias-bg-layer-3, rgba(127,127,127,0.05))',
-                      opacity: dirty ? 1 : 0.4,
+                      opacity: canSave ? 1 : 0.4,
                     },
                   },
                   t.save,

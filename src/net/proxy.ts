@@ -10,18 +10,19 @@ import type { Dispatcher } from 'undici';
 import { Agent, EnvHttpProxyAgent, ProxyAgent, fetch as undiciFetch } from 'undici';
 
 /**
- * The dispatcher an API provider request should use. An explicit setting
- * (config `proxy`, or `providers.<name>.proxy`) wins; otherwise the standard
- * environment variables apply exactly as curl reads them, NO_PROXY included.
- * Undefined means direct connection, fetch's default behavior.
+ * The dispatcher an API provider request should use. A non-empty explicit
+ * setting selects that proxy, while an explicit empty string selects a direct
+ * connection. Only an absent setting inherits the standard environment
+ * variables, with NO_PROXY included. Undefined means direct connection,
+ * fetch's default behavior.
  */
 export function apiProxyDispatcher(
     explicitProxy: string | undefined,
     env: NodeJS.ProcessEnv,
 ): Dispatcher | undefined {
-    const proxy = explicitProxy?.trim();
-    if (proxy) {
-        return new ProxyAgent(proxy);
+    if (explicitProxy !== undefined) {
+        const proxy = explicitProxy.trim();
+        return proxy ? new ProxyAgent(proxy) : undefined;
     }
     if (env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy) {
         return new EnvHttpProxyAgent();

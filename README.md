@@ -126,7 +126,7 @@ Two more sources of vision need zero new keys, each behind one explicit consent 
 
 ### Picking and routing
 
-Two knobs: `modlens config set provider <name>` states a preference (the chain still backs it up), `-p <name>` pins exactly one with no fallback. Machines behind a proxy set `HTTPS_PROXY` or `modlens config set proxy <url>` and the API providers route through it. Details: the [CLI manual](docs/cli.md) for defaults and flags, [Configuration](skills/modlens/references/configure.md) for every key, and [Security](docs/security.md) for who fetches what on remote URLs.
+Two knobs: `modlens config set provider <name>` states a preference (the chain still backs it up), `-p <name>` pins exactly one with no fallback. Machines behind a proxy set `HTTPS_PROXY` or `modlens config set proxy <url>` and the API providers route through it. An internal endpoint can opt out with `modlens config set openai.proxy ""`. Details: the [CLI manual](docs/cli.md) for defaults and flags, [Configuration](skills/modlens/references/configure.md) for every key, and [Security](docs/security.md) for who fetches what on remote URLs.
 
 ## See it work
 

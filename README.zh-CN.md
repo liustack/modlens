@@ -138,7 +138,7 @@ modlens config set openai.model   qwen3-vl-plus
 
 ### 选择与路由
 
-两个旋钮：`modlens config set provider <name>` 表达偏好（链继续兜底），`-p <name>` 钉死单个不回退。代理环境设 `HTTPS_PROXY` 或 `modlens config set proxy <url>`，API provider 自动走代理。细节见 [CLI 手册](docs/cli.zh-CN.md)（默认模型与参数）、[配置手册](skills/modlens/references/configure.zh-CN.md)（全部配置键）、[安全说明](docs/security.zh-CN.md)（远程 URL 由谁抓取）。
+两个旋钮：`modlens config set provider <name>` 表达偏好（链继续兜底），`-p <name>` 钉死单个不回退。代理环境设 `HTTPS_PROXY` 或 `modlens config set proxy <url>`，API provider 自动走代理。内网端点可用 `modlens config set openai.proxy ""` 单独改为直连。细节见 [CLI 手册](docs/cli.zh-CN.md)（默认模型与参数）、[配置手册](skills/modlens/references/configure.zh-CN.md)（全部配置键）、[安全说明](docs/security.zh-CN.md)（远程 URL 由谁抓取）。
 
 ## 实测
 

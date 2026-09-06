@@ -188,7 +188,10 @@ API 请求根本没离开这台机器。在要靠代理才能上网的网络里�
 HTTPS_PROXY=http://127.0.0.1:7890 modlens -i shot.png -p gemini-api   # env (NO_PROXY honored too)
 modlens config set proxy http://127.0.0.1:7890                        # persistent, all API providers
 modlens config set openai.proxy http://127.0.0.1:7890                 # one provider only
+modlens config set openai.proxy ""                                    # 这个 provider 强制直连
 ```
+
+provider 代理字段有三种状态。字段缺失表示继承共享配置或环境代理，空字符串表示直连，URL 表示只给该 provider 使用的代理。当外部 provider 需要共享代理，而内网端点必须直连时，这个区别很重要。故障转移仍然会尝试两者，但共享的失效代理会让两个尝试以同一种方式失败。
 
 代理只作用于 API provider 的请求。远程图片的下载路径有意保持直连并钉死 IP：它的 SSRF 防护校验的正是实际连接的那个地址，加了代理这些防护就失明了。在必须走代理的机器上，优先用本地文件，或让故障转移链把远程 URL 交给会在上游自行抓取的 provider。
 

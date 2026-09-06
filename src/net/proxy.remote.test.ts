@@ -1,6 +1,7 @@
 import * as http from 'http';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as zlib from 'zlib';
+import { resolveProviderSettings } from '../config.ts';
 import { apiFetch } from './proxy.ts';
 
 // The point of this file is what it does NOT mock: undici. The sibling
@@ -34,6 +35,7 @@ beforeAll(async () => {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
 });
 
 afterAll(() => {
@@ -61,4 +63,51 @@ describe('apiFetch over the real undici stack (#91)', () => {
         );
         expect(await response.json()).toEqual(PLAIN_PAYLOAD);
     });
+});
+
+describe('provider direct routing over real connections (#97)', () => {
+    it.each(['config', 'env'] as const)(
+        'keeps an internal provider reachable when the shared %s proxy fails',
+        async (source) => {
+            let proxyAttempts = 0;
+            const failedProxy = http.createServer((_req, res) => {
+                proxyAttempts += 1;
+                res.destroy();
+            });
+            failedProxy.on('connect', (_req, socket) => {
+                proxyAttempts += 1;
+                socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');
+            });
+            await new Promise<void>((resolve) => failedProxy.listen(0, '127.0.0.1', resolve));
+            const proxyPort = (failedProxy.address() as { port: number }).port;
+            const proxyUrl = `http://127.0.0.1:${proxyPort}`;
+            for (const name of ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy']) {
+                vi.stubEnv(name, source === 'env' ? proxyUrl : '');
+            }
+            vi.stubEnv('NO_PROXY', '');
+            vi.stubEnv('no_proxy', '');
+            const config = {
+                ...(source === 'config' ? { proxy: proxyUrl } : {}),
+                providers: { 'gemini-api': {}, openai: { proxy: '' } },
+            };
+            const request = (provider: string) =>
+                apiFetch(
+                    `http://127.0.0.1:${port}/plain`,
+                    { method: 'GET', signal: AbortSignal.timeout(2_000) },
+                    resolveProviderSettings(provider, config).proxy,
+                );
+            try {
+                await expect(request('gemini-api')).rejects.toThrow();
+                expect(proxyAttempts).toBeGreaterThan(0);
+                const attemptsBeforeDirect = proxyAttempts;
+                const response = await request('openai');
+                expect(await response.json()).toEqual(PLAIN_PAYLOAD);
+                expect(proxyAttempts).toBe(attemptsBeforeDirect);
+            } finally {
+                await new Promise<void>((resolve, reject) => {
+                    failedProxy.close((error) => (error ? reject(error) : resolve()));
+                });
+            }
+        },
+    );
 });

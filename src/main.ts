@@ -209,7 +209,7 @@ program
 
 const config = program
     .command('config')
-    .description(`Manage ${CONFIG_PATH} (providers, keys, models)`);
+    .description(`Manage ${CONFIG_PATH} (providers, keys, models, proxies)`);
 
 config
     .command('init')
@@ -224,7 +224,8 @@ config
                     'Everything is optional. The usual ones:',
                     '  modlens config set provider <name>                      which provider analyzes images',
                     '  modlens config set cooldown on|off                       quota cooldown (on by default)',
-                    '  modlens config set <provider>.<apiKey|baseUrl|model> <value>   provider settings',
+                    '  modlens config set <provider>.<apiKey|baseUrl|model|proxy> <value>   provider settings',
+                    '  modlens config set openai.proxy ""                  make one API provider connect directly',
                     '  modlens config set <provider>.extraBody \'{"thinking":{"type":"disabled"}}\'   vendor request fields',
                     '',
                 ].join('\n'),
@@ -304,7 +305,7 @@ config
 
 config
     .command('show')
-    .description('Print the effective config (file merged with env vars), API keys masked')
+    .description('Print the effective config (file merged with env vars), credentials masked')
     .action(() => {
         try {
             process.stdout.write(`${renderEffectiveConfig(loadConfigFile())}\n`);

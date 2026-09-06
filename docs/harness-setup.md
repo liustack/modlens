@@ -64,16 +64,17 @@ This registers a `modlens_read_image` tool whose schema reaches the model on eve
 
 dsh web users have no terminal in front of them, so the engine settings have a
 card in **Settings → Plugins → Plugin configuration**: which engine reads
-images, its key, endpoint and model, and which local sign-ins a read may
+images, its key, endpoint, model and proxy route, and which local sign-ins a read may
 borrow. Expanding it probes this machine and lists the harnesses it actually
 found, so the grants are a choice between real options rather than five names.
 
 The values live where they always did, in `~/.modlens/config.json`, shared
 with every other harness: the card reads and writes that file through a
 loopback route, so an edit here is the same edit `modlens config set` makes.
-The card never receives a stored key, only whether one is set, and leaving the
-key field empty keeps the stored one. `settingsCard: false` in the plugin row
-removes it, route included.
+The card never receives a stored key or proxy URL, only whether the key is set
+and whether proxy routing inherits, connects directly, or uses a custom URL.
+Leaving either secret field empty keeps the stored value. `settingsCard: false`
+in the plugin row removes it, route included.
 
 The card's own text follows dsh's interface language setting, switching
 between Chinese and English as you switch dsh. On a dsh too old to expose that

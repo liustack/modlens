@@ -33,6 +33,11 @@ describe('apiProxyDispatcher', () => {
         }
     });
 
+    it('uses a direct connection when the provider explicitly sets an empty proxy (#97)', () => {
+        const dispatcher = apiProxyDispatcher('', { HTTPS_PROXY: 'http://127.0.0.1:1' });
+        expect(dispatcher).toBeUndefined();
+    });
+
     it('prefers the explicit setting over env vars', () => {
         const dispatcher = apiProxyDispatcher('http://10.0.0.9:8080', {
             HTTPS_PROXY: 'http://127.0.0.1:1',

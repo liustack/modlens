@@ -15,9 +15,11 @@ export interface ProviderSettings {
     baseUrl?: string;
     model?: string;
     /**
-     * Proxy URL for this provider's API requests (issue #20). Falls back to
-     * the top-level `proxy`, then to HTTPS_PROXY/HTTP_PROXY. Never applies to
-     * the SSRF-guarded remote-image download path.
+     * Proxy route for this provider's API requests. Absent inherits the
+     * top-level `proxy` and then HTTPS_PROXY/HTTP_PROXY. An empty string means
+     * direct connection, and a non-empty string is a provider-specific proxy
+     * URL (#20, #97). Never applies to the SSRF-guarded remote-image download
+     * path.
      */
     proxy?: string;
     /**
@@ -255,8 +257,14 @@ export function resolveProviderSettings(
     const settings: ProviderSettings = mentioned
         ? { ...fileSettingsFor(providerName, config) }
         : envSettingsFor(providerName, env);
-    // The top-level proxy is the default; a provider-level one overrides it.
-    if (!settings.proxy && typeof config.proxy === 'string' && config.proxy.trim()) {
+    // The top-level proxy is the default only while this provider leaves the
+    // field absent. An explicit empty string means direct connection, which is
+    // distinct from inheriting the machine-wide route (#97).
+    if (
+        !Object.hasOwn(settings, 'proxy') &&
+        typeof config.proxy === 'string' &&
+        config.proxy.trim()
+    ) {
         settings.proxy = config.proxy.trim();
     }
     return settings;
@@ -913,7 +921,9 @@ export function renderEffectiveConfig(
                 field === 'apiKey'
                     ? maskKeys(value)
                     : field === 'proxy'
-                      ? maskUrlCredentials(guard(value))
+                      ? value.trim() === ''
+                          ? 'direct'
+                          : maskUrlCredentials(guard(value))
                       : guard(value);
             fields[field] = `${shown} (${source})`;
         }

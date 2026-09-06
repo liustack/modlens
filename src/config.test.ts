@@ -54,6 +54,18 @@ describe('resolveProviderSettings', () => {
         expect(settings.baseUrl).toBe('https://gw.example.com/v1');
         expect(settings.apiKey).toBe('k');
     });
+
+    it('keeps an explicit empty provider proxy as direct instead of inheriting the global proxy (#97)', () => {
+        const settings = resolveProviderSettings(
+            'openai',
+            {
+                proxy: 'http://127.0.0.1:7890',
+                providers: { openai: { apiKey: 'k', proxy: '' } },
+            },
+            {},
+        );
+        expect(settings.proxy).toBe('');
+    });
 });
 
 describe('setConfigValue + loadConfigFile + renderEffectiveConfig', () => {
@@ -121,6 +133,19 @@ describe('setConfigValue + loadConfigFile + renderEffectiveConfig', () => {
             renderEffectiveConfig({ proxy: 'http://proxy.example:8080' }, {}),
         ) as { proxy?: string };
         expect(plain.proxy).toBe('http://proxy.example:8080 (file)');
+    });
+
+    it('renders an explicit empty provider proxy as direct instead of a blank value (#97)', () => {
+        const shown = JSON.parse(
+            renderEffectiveConfig(
+                {
+                    proxy: 'http://proxy.example:8080',
+                    providers: { openai: { apiKey: 'k', proxy: '' } },
+                },
+                { HTTPS_PROXY: 'http://env-proxy.example:8080' },
+            ),
+        ) as { providers: Record<string, Record<string, string>> };
+        expect(shown.providers.openai.proxy).toBe('direct (file)');
     });
 
     it('stores extraBody as parsed JSON, clears it on an empty value, and shows it', () => {

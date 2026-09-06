@@ -473,9 +473,7 @@ describe('settings card (#39)', () => {
 
         // An edited field brings the engine with it.
         const edited = card.savePayload(summary, { ...untouched, model: 'b' });
-        expect(edited.engine).toBe('openai');
-        expect(edited.model).toBe('b');
-        expect(edited.provider).toBeUndefined();
+        expect(edited).toEqual({ reuse: {}, engine: 'openai', model: 'b' });
 
         // Moving the select sends the pin, and unpinning sends the empty.
         const repinned = card.savePayload(summary, {
@@ -515,6 +513,75 @@ describe('settings card (#39)', () => {
         expect(
             (card.nextDraft(summary, 'openai') as { reuse: Record<string, boolean> }).reuse,
         ).toEqual(summary.reuse);
+    });
+
+    it('builds a proxy draft from the mode without receiving the stored URL (#97)', async () => {
+        const { card } = loadCard(200);
+        const summary = {
+            provider: 'openai',
+            engines: {
+                openai: {
+                    baseUrl: 'https://gateway.example/v1',
+                    model: 'm',
+                    hasKey: true,
+                    proxyMode: 'custom',
+                },
+            },
+            reuse: {},
+        };
+        const draft = card.nextDraft(summary, 'openai') as Record<string, unknown>;
+        expect(draft.proxyMode).toBe('custom');
+        expect(draft.proxy).toBe('');
+        expect(JSON.stringify(draft)).not.toContain('proxy.example');
+    });
+
+    it('sends proxy routing only when its mode or custom URL changes (#97)', async () => {
+        const { card } = loadCard(200);
+        const summary = {
+            provider: 'openai',
+            engines: {
+                openai: {
+                    baseUrl: 'https://gateway.example/v1',
+                    model: 'm',
+                    hasKey: true,
+                    proxyMode: 'inherit',
+                },
+            },
+            reuse: {},
+        };
+        const draft = card.nextDraft(summary, 'openai') as Record<string, unknown>;
+
+        expect(card.savePayload(summary, draft)).toEqual({ reuse: {} });
+        expect(card.savePayload(summary, { ...draft, proxyMode: 'direct' })).toEqual({
+            reuse: {},
+            engine: 'openai',
+            proxyMode: 'direct',
+            proxy: '',
+        });
+        expect(
+            card.savePayload(summary, {
+                ...draft,
+                proxyMode: 'custom',
+                proxy: 'http://127.0.0.1:7890',
+            }),
+        ).toEqual({
+            reuse: {},
+            engine: 'openai',
+            proxyMode: 'custom',
+            proxy: 'http://127.0.0.1:7890',
+        });
+        expect(
+            card.savePayload(summary, {
+                ...draft,
+                proxyMode: 'direct',
+                proxy: 'http://proxy-user:proxy-pass@127.0.0.1:7890',
+            }),
+        ).toEqual({
+            reuse: {},
+            engine: 'openai',
+            proxyMode: 'direct',
+            proxy: '',
+        });
     });
 });
 
@@ -984,7 +1051,15 @@ describe('settings card progressive discovery (#83)', () => {
 
     const CONFIG = {
         provider: 'openai',
-        engines: { openai: { baseUrl: '', model: '', hasKey: true, source: 'file' } },
+        engines: {
+            openai: {
+                baseUrl: '',
+                model: '',
+                hasKey: true,
+                source: 'file',
+                proxyMode: 'inherit',
+            },
+        },
         keyless: [] as string[],
         reuse: { claude: false, codex: false, opencode: false, pi: false, grok: false },
     };
@@ -1007,9 +1082,13 @@ describe('settings card progressive discovery (#83)', () => {
         expand: () => void;
         collapse: () => void;
         changeProvider: (provider: string) => void;
+        changeProxyMode: (mode: string) => void;
+        setCustomProxy: (url: string) => void;
         save: () => void;
         fetchCalls: FetchCall[];
         selectedProvider: () => string;
+        selectedProxyMode: () => string;
+        buttonDisabled: (label: string) => boolean;
         resolveConfig: (request: number, body: unknown) => void;
         resolveDiscover: (body: unknown) => void;
         resolveSave: (body: unknown) => void;
@@ -1220,6 +1299,24 @@ describe('settings card progressive discovery (#83)', () => {
                     target: { value: provider },
                 });
             },
+            changeProxyMode: (mode: string) => {
+                const select = find(
+                    (node) => node.type === 'select' && node.props.name === 'proxyMode',
+                    'no proxy mode select',
+                );
+                (select.props.onChange as (event: unknown) => void)({
+                    target: { value: mode },
+                });
+            },
+            setCustomProxy: (url: string) => {
+                const input = find(
+                    (node) =>
+                        node.type === Input &&
+                        String(node.props.placeholder ?? '').includes('127.0.0.1'),
+                    'no custom proxy input',
+                );
+                (input.props.onChange as (event: unknown) => void)({ target: { value: url } });
+            },
             save: () => {
                 const button = find(
                     (node) => node.type === 'button' && textsOf(node.kids).includes('Save'),
@@ -1231,6 +1328,20 @@ describe('settings card progressive discovery (#83)', () => {
             selectedProvider: () => {
                 const select = find((node) => node.type === 'select', 'no engine select');
                 return String(select.props.value);
+            },
+            selectedProxyMode: () => {
+                const select = find(
+                    (node) => node.type === 'select' && node.props.name === 'proxyMode',
+                    'no proxy mode select',
+                );
+                return String(select.props.value);
+            },
+            buttonDisabled: (label: string) => {
+                const button = find(
+                    (node) => node.type === 'button' && textsOf(node.kids).includes(label),
+                    `no ${label} button`,
+                );
+                return Boolean(button.props.disabled);
             },
             resolveConfig: (request: number, body: unknown) => {
                 const resolve = configResolvers[request];
@@ -1260,6 +1371,52 @@ describe('settings card progressive discovery (#83)', () => {
         expect(texts).toContain('loading...');
         expect(texts).not.toContain('claude');
         expect(texts).not.toContain('codex');
+    });
+
+    it('lets an API provider bypass inherited proxies and posts that choice (#97)', async () => {
+        const card = mount();
+        card.expand();
+        await flush();
+
+        expect(card.selectedProxyMode()).toBe('inherit');
+        card.changeProxyMode('direct');
+        expect(card.selectedProxyMode()).toBe('direct');
+        card.save();
+        await flush();
+
+        const post = card.fetchCalls.find((call) => call.init?.method === 'POST');
+        expect(JSON.parse(String(post?.init?.body))).toMatchObject({
+            engine: 'openai',
+            proxyMode: 'direct',
+        });
+    });
+
+    it('accepts a provider-specific proxy URL from the settings card (#97)', async () => {
+        const card = mount();
+        card.expand();
+        await flush();
+
+        card.changeProxyMode('custom');
+        card.setCustomProxy('http://proxy-user:proxy-pass@127.0.0.1:7890');
+        card.save();
+        await flush();
+
+        const post = card.fetchCalls.find((call) => call.init?.method === 'POST');
+        expect(JSON.parse(String(post?.init?.body))).toMatchObject({
+            engine: 'openai',
+            proxyMode: 'custom',
+            proxy: 'http://proxy-user:proxy-pass@127.0.0.1:7890',
+        });
+    });
+
+    it('requires a URL for a new custom route without trapping the discard action (#97)', async () => {
+        const card = mount();
+        card.expand();
+        await flush();
+
+        card.changeProxyMode('custom');
+        expect(card.buttonDisabled('Save')).toBe(true);
+        expect(card.buttonDisabled('Discard')).toBe(false);
     });
 
     it('fills the auto-mode section once discovery returns, without hiding the form', async () => {
