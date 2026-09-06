@@ -20,11 +20,11 @@ powershell -ExecutionPolicy Bypass -File <skill-dir>\scripts\run.ps1 <args>     
 
 It resolves a working runtime (PATH `modlens`, then `npx`, then `bunx`) and forwards your arguments unchanged. Exit 78 means no runtime: relay the `nextSteps` from its stderr JSON instead of retrying.
 
-If your harness forbids running scripts, reason through the same order by hand and run the first line that works (the pinned version is 3.25.4):
+If your harness forbids running scripts, reason through the same order by hand and run the first line that works (the pinned version is 3.26.0):
 
-1. A `modlens` on `PATH` whose major version is 3 and is at least 3.25.4: `modlens <args>`.
-2. Otherwise, if `npx` exists: `npx --yes --package @liustack/modlens@3.25.4 modlens <args>`.
-3. Otherwise, if `bunx` exists: `bunx --bun @liustack/modlens@3.25.4 <args>`.
+1. A `modlens` on `PATH` whose major version is 3 and is at least 3.26.0: `modlens <args>`.
+2. Otherwise, if `npx` exists: `npx --yes --package @liustack/modlens@3.26.0 modlens <args>`.
+3. Otherwise, if `bunx` exists: `bunx --bun @liustack/modlens@3.26.0 <args>`.
 4. Otherwise tell the user no JavaScript runtime was found and that installing Node 22.19+ (https://nodejs.org) or Bun (https://bun.sh) is the next step. Do not claim modlens itself failed.
 
 `references/runtime.md` documents the pin and the diagnostic fields.

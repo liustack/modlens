@@ -17,7 +17,7 @@ You are on dsh if `~/.dsh/` exists, or the conversation runs in the DeepSeek
 Harness web or desktop app. One command installs the plugin:
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.25.4
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.26.0
 ```
 
 Then tell the user to restart dsh and look at the model selector: entries

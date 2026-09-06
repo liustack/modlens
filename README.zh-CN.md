@@ -33,7 +33,7 @@ DeepSeek 的主力对话模型和 GLM-5.3 本体仍是纯文本，无法读图�
 
 ## 亮点
 
-**🥇 全网最强的 DeepSeek Harness（dsh）外挂视觉识别插件：**一条命令即刻安装 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.25.4`。更多安装与更新细节参考 [配置手册](docs/harness-setup.zh-CN.md) 。如果用不惯命令行，也想想玩玩 DSH，推荐食用全网最轻量级的 DeepSeek Harness 桌面版封装 <a href="https://github.com/liustack/aimanager"><b> AIManager</b></a>，零代码零配置起手，一键帮你安装所有依赖环境。
+**🥇 全网最强的 DeepSeek Harness（dsh）外挂视觉识别插件：**一条命令即刻安装 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.26.0`。更多安装与更新细节参考 [配置手册](docs/harness-setup.zh-CN.md) 。如果用不惯命令行，也想想玩玩 DSH，推荐食用全网最轻量级的 DeepSeek Harness 桌面版封装 <a href="https://github.com/liustack/aimanager"><b> AIManager</b></a>，零代码零配置起手，一键帮你安装所有依赖环境。
 
 DeepSeek Harness 粘贴识图有两种玩法。
 
@@ -80,7 +80,7 @@ agy                                                           # 浏览器完成�
 **DeepSeek Harness（dsh）用户不走 skill 流程**，本包就是原生 dsh 插件：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.25.4
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.26.0
 ```
 
 装完即有 `modlens_read_image` 工具，选「(modlens vision)」模型变体即可直接粘贴识图。引擎配置同样在 `~/.modlens`，详见[宿主接入](docs/harness-setup.zh-CN.md)。
