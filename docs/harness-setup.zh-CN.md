@@ -55,7 +55,7 @@ OpenCode 接 DeepSeek：执行 `opencode auth login`，选择 DeepSeek 并粘贴
 dsh 与其他 harness 不同：modlens 以原生工具的形式接入，而不是靠提示词触发的 skill。本包自身就是一个 dsh bundle，一条命令即可装进某个 profile：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.26.0
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modlens@3.26.1
 ```
 
 这会注册一个 `modlens_read_image` 工具，它的 schema 随每次请求抵达模型（不靠触发启发式），运行同一个包里自带的 modlens CLI，并把结构化证据作为工具的标准 JSON 输出返回。引擎、复用授权和 guard 规则仍在 `~/.modlens/config.json` 里，与其他所有 harness 共享。dsh 还在开发者预览阶段，插件接口可能变化。这个插件刻意保持很小的接触面（原生工具注册、视觉变体所用的 llm 适配层、附件读取器，以及一个 agent 执行前钩子），其中任何一处变动，它都会大声报错而不是无声退化。
@@ -116,7 +116,7 @@ dsh 的网页用户面前没有终端，所以引擎设置有一张卡片，在*
 modlens 发布很频繁，而两种安装形态都会冻结在装进来的那个版本上。dsh 上重跑一遍安装即可，版本号要点名：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modlens@3.26.0
+npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modlens@3.26.1
 ```
 
 `npm view @liustack/modlens version` 可以查到当前版本号，本页的版本号则由发布流程自动写入。

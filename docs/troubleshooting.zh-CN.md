@@ -144,7 +144,7 @@ dsh profile 装到的是旧版 modlens。`dsh.bundle` 声明从 3.9.0 起才存�
 `@latest` 绕不开这一层，本页早先的说法是错的。冷静期先把候选版本过滤掉，dist-tag 才在剩下的里面解析，于是它直接落到了更旧的那个上。改成写死精确版本号，pnpm 会把它当作一次明确的指定，而不是一次解析：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modlens@3.26.0
+npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modlens@3.26.1
 ```
 
 `npm view @liustack/modlens version` 可以查到当前版本号。pnpm 11 会装上被点名的版本，11.1.3 起还会把它作为一条已批准的例外写进该 profile 的 `pnpm-workspace.yaml`，其余所有包和 modlens 以后的版本仍然留在窗口后面。
@@ -153,7 +153,7 @@ npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modlens@3.26.0
 
 ```yaml
 minimumReleaseAgeExclude:
-  - '@liustack/modlens@3.26.0'
+  - '@liustack/modlens@3.26.1'
 ```
 
 或者只为这一条命令解除冷静期，注意它解除的是这条命令解析到的所有包，不只 modlens：
