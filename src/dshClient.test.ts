@@ -15,8 +15,42 @@ interface FetchCall {
     init?: { method?: string; body?: unknown };
 }
 
+type PasteTarget = 'composer' | 'child' | 'unwritable';
+type ActiveWhich = 'composer' | 'other' | 'unwritable';
+
+interface NodeStub {
+    tagName: string;
+    value?: string;
+    focused?: boolean;
+    contentEditable?: string;
+    isContentEditable?: boolean;
+    closest?: (selector: string) => NodeStub | null;
+    getAttribute?: (name: string) => string | null;
+    focus: () => void;
+    dispatchEvent: (event?: unknown) => boolean;
+}
+
+function matchesWriteSelector(el: NodeStub, selector: string): boolean {
+    return selector
+        .split(',')
+        .map((part) => part.trim())
+        .some((part) => {
+            if (part.toLowerCase() === 'textarea') return el.tagName === 'TEXTAREA';
+            if (part.toLowerCase() === 'input') return el.tagName === 'INPUT';
+            if (part === '[data-composer-input][contenteditable=true]') {
+                const attr = el.getAttribute?.('data-composer-input');
+                const editable = el.isContentEditable === true || el.contentEditable === 'true';
+                return attr != null && editable;
+            }
+            return false;
+        });
+}
+
 interface Harness {
-    dispatchPaste: (files: Array<{ type: string }>) => {
+    dispatchPaste: (
+        files: Array<{ type: string }>,
+        target?: PasteTarget,
+    ) => {
         prevented: boolean;
         stopped: boolean;
     };
@@ -24,23 +58,36 @@ interface Harness {
     settle: () => Promise<void>;
     fetchCalls: FetchCall[];
     insertedText: () => string;
+    execCommandCalls: Array<[string, boolean, string]>;
+    valueSetterCalls: Array<{ tag: string; value: string }>;
+    composerFocused: () => boolean;
+    otherFocused: () => boolean;
     listeners: () => Record<string, number>;
     dispose: () => void;
     setModelLabel: (label: string) => void;
+    setActiveElement: (which: ActiveWhich) => void;
 }
 
 function loadClient(options: {
     policy?: (label: string) => { status: number; takeover?: boolean };
     uploadPath?: string;
     postStatus?: number;
+    composer?: 'textarea' | 'contenteditable';
+    execCommand?: true | false | 'throw';
 }): Harness {
     const fetchCalls: FetchCall[] = [];
     const policy = options.policy ?? (() => ({ status: 200, takeover: false }));
     const uploadPath = options.uploadPath ?? '/tmp/modlens-test/paste.png';
     const postStatus = options.postStatus ?? 200;
+    const kind = options.composer ?? 'textarea';
+    const execCommandMode = options.execCommand ?? true;
 
     let modelLabel = '';
     let inserted = '';
+    let composerWasFocused = false;
+    let otherWasFocused = false;
+    const execCommandCalls: Array<[string, boolean, string]> = [];
+    const valueSetterCalls: Array<{ tag: string; value: string }> = [];
     const handlers = new Map<string, Set<(event: unknown) => void>>();
     const addListener = (type: string, fn: (event: unknown) => void) => {
         if (!handlers.has(type)) handlers.set(type, new Set());
@@ -50,10 +97,55 @@ function loadClient(options: {
         handlers.get(type)?.delete(fn);
     };
 
-    const textarea = {
+    const textarea: NodeStub = {
         tagName: 'TEXTAREA',
         value: '',
+        focus: () => {
+            composerWasFocused = true;
+        },
+        dispatchEvent: () => true,
+    };
+
+    const editable: NodeStub = {
+        tagName: 'DIV',
+        contentEditable: 'true',
+        isContentEditable: true,
+        getAttribute: (name) => (name === 'data-composer-input' ? '' : null),
+        closest: (selector) => (matchesWriteSelector(editable, selector) ? editable : null),
+        focus: () => {
+            composerWasFocused = true;
+        },
+        dispatchEvent: () => true,
+    };
+
+    const composer = kind === 'contenteditable' ? editable : textarea;
+
+    const child: NodeStub = {
+        tagName: 'SPAN',
+        closest: (selector) => {
+            if (typeof composer.closest === 'function') return composer.closest(selector);
+            return matchesWriteSelector(composer, selector) ? composer : null;
+        },
         focus: () => {},
+        dispatchEvent: () => true,
+    };
+
+    const unwritable: NodeStub = {
+        tagName: 'DIV',
+        contentEditable: 'false',
+        isContentEditable: false,
+        getAttribute: () => null,
+        closest: () => null,
+        focus: () => {},
+        dispatchEvent: () => true,
+    };
+
+    const other: NodeStub = {
+        tagName: 'TEXTAREA',
+        value: '',
+        focus: () => {
+            otherWasFocused = true;
+        },
         dispatchEvent: () => true,
     };
 
@@ -65,11 +157,24 @@ function loadClient(options: {
                 getAttribute: () => `Select model, current ${modelLabel}`,
             },
         ],
-        activeElement: textarea,
-        execCommand: (_cmd: string, _ui: boolean, text: string) => {
+        activeElement: composer as NodeStub,
+        execCommand: (cmd: string, ui: boolean, text: string) => {
+            execCommandCalls.push([cmd, ui, text]);
+            if (execCommandMode === 'throw') throw new Error('execCommand unavailable');
+            if (execCommandMode === false) return false;
             inserted += text;
             return true;
         },
+    };
+
+    const defineValueProto = (tag: string) => {
+        const proto = {};
+        Object.defineProperty(proto, 'value', {
+            set(value: string) {
+                valueSetterCalls.push({ tag, value });
+            },
+        });
+        return proto;
     };
 
     let disposer: (() => void) | undefined;
@@ -90,6 +195,8 @@ function loadClient(options: {
                 loaded = definition;
             },
         },
+        HTMLTextAreaElement: { prototype: defineValueProto('TEXTAREA') },
+        HTMLInputElement: { prototype: defineValueProto('INPUT') },
     };
 
     const fetchStub = (url: string, init?: { method?: string; body?: unknown }) => {
@@ -123,8 +230,10 @@ function loadClient(options: {
     loaded.factory(() => ({})).apply(ctx);
 
     return {
-        dispatchPaste: (files) => {
+        dispatchPaste: (files, target = 'composer') => {
             const flags = { prevented: false, stopped: false };
+            const eventTarget =
+                target === 'child' ? child : target === 'unwritable' ? unwritable : composer;
             const event = {
                 clipboardData: {
                     items: files.map((file) => ({
@@ -141,7 +250,7 @@ function loadClient(options: {
                 stopImmediatePropagation: () => {
                     flags.stopped = true;
                 },
-                target: textarea,
+                target: eventTarget,
             };
             for (const fn of handlers.get('paste') ?? []) fn(event);
             return flags;
@@ -158,6 +267,10 @@ function loadClient(options: {
         },
         fetchCalls,
         insertedText: () => inserted,
+        execCommandCalls,
+        valueSetterCalls,
+        composerFocused: () => composerWasFocused,
+        otherFocused: () => otherWasFocused,
         listeners: () => {
             const counts: Record<string, number> = {};
             for (const [type, set] of handlers) counts[type] = set.size;
@@ -166,6 +279,10 @@ function loadClient(options: {
         dispose: () => disposer?.(),
         setModelLabel: (label) => {
             modelLabel = label;
+        },
+        setActiveElement: (which) => {
+            documentStub.activeElement =
+                which === 'other' ? other : which === 'unwritable' ? unwritable : composer;
         },
     };
 }
@@ -322,6 +439,81 @@ describe('dsh paste-to-path browser half', () => {
         harness.dispose();
         expect(harness.listeners().paste).toBe(0);
         expect(harness.listeners().focusin).toBe(0);
+    });
+});
+
+describe('dsh paste-to-path Lexical composer (#100)', () => {
+    async function takeoverHarness(
+        options: Parameters<typeof loadClient>[0] = {},
+    ): Promise<Harness> {
+        const harness = loadClient({
+            policy: () => ({ status: 200, takeover: true }),
+            ...options,
+        });
+        harness.setModelLabel('DeepSeek-V4-Flash');
+        harness.focusComposer();
+        await harness.settle();
+        return harness;
+    }
+
+    it('inserts the upload path into a contenteditable composer via execCommand', async () => {
+        const harness = await takeoverHarness({ composer: 'contenteditable' });
+        const paste = harness.dispatchPaste(IMAGE, 'child');
+        expect(paste.prevented).toBe(true);
+        expect(paste.stopped).toBe(true);
+        await harness.settle();
+        expect(harness.execCommandCalls).toEqual([
+            ['insertText', false, '/tmp/modlens-test/paste.png '],
+        ]);
+        expect(harness.insertedText()).toBe('/tmp/modlens-test/paste.png ');
+    });
+
+    it('logs the path when execCommand cannot insert into a contenteditable composer', async () => {
+        const errors: string[] = [];
+        const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+            errors.push(args.map(String).join(' '));
+        });
+        try {
+            const harness = await takeoverHarness({
+                composer: 'contenteditable',
+                execCommand: false,
+            });
+            const paste = harness.dispatchPaste(IMAGE);
+            expect(paste.prevented).toBe(true);
+            await harness.settle();
+            expect(harness.valueSetterCalls).toEqual([]);
+            expect(harness.insertedText()).toBe('');
+            const logged = errors.join('\n');
+            expect(logged).toMatch(/\[modlens\] paste-to-path:/);
+            expect(logged).toContain('/tmp/modlens-test/paste.png');
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it('leaves native paste alone when nothing writable is focused', async () => {
+        const harness = await takeoverHarness();
+        harness.setActiveElement('unwritable');
+        const paste = harness.dispatchPaste(IMAGE, 'unwritable');
+        expect(paste.prevented).toBe(false);
+        expect(paste.stopped).toBe(false);
+        await harness.settle();
+        expect(harness.fetchCalls.filter((call) => call.init?.method === 'POST')).toHaveLength(0);
+        expect(harness.execCommandCalls).toEqual([]);
+        expect(harness.insertedText()).toBe('');
+    });
+
+    it('writes back to the paste-time composer after focus moves during upload', async () => {
+        const harness = await takeoverHarness({ composer: 'contenteditable' });
+        const paste = harness.dispatchPaste(IMAGE);
+        expect(paste.prevented).toBe(true);
+        harness.setActiveElement('other');
+        await harness.settle();
+        expect(harness.composerFocused()).toBe(true);
+        expect(harness.otherFocused()).toBe(false);
+        expect(harness.execCommandCalls).toEqual([
+            ['insertText', false, '/tmp/modlens-test/paste.png '],
+        ]);
     });
 });
 

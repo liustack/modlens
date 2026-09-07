@@ -32,10 +32,36 @@ window.__ModuleLoader__.load({
       return files
     }
 
+    function isTextField(el) {
+      return el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')
+    }
+
+    function isComposerEditable(el) {
+      if (!el || typeof el.getAttribute !== 'function') return false
+      if (el.getAttribute('data-composer-input') == null) return false
+      return el.isContentEditable === true || el.contentEditable === 'true'
+    }
+
+    function isWritable(el) {
+      return isTextField(el) || isComposerEditable(el)
+    }
+
+    // Resolve before taking the event. No writable composer means native
+    // paste; missing closest (stubs, odd hosts) falls through to
+    // activeElement so a focused textarea still works.
+    function resolveWriteTarget(event) {
+      var fromEvent = event.target
+      if (fromEvent && typeof fromEvent.closest === 'function') {
+        var found = fromEvent.closest('textarea, input, [data-composer-input][contenteditable=true]')
+        if (found) return found
+      }
+      var active = document.activeElement
+      return isWritable(active) ? active : null
+    }
+
     function insertText(target, text) {
-      var el = target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') ? target : document.activeElement
-      if (!el || (el.tagName !== 'TEXTAREA' && el.tagName !== 'INPUT')) return
-      el.focus()
+      if (!isWritable(target)) return false
+      target.focus()
       // execCommand fires the input event React's controlled textarea needs;
       // the prototype-setter dance is the fallback for engines dropping it.
       var inserted = false
@@ -44,11 +70,19 @@ window.__ModuleLoader__.load({
       } catch {
         inserted = false
       }
-      if (!inserted) {
-        var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+      if (inserted) return true
+      // Lexical's composer is a contenteditable div: it has no value
+      // setter, and assigning innerHTML/textContent bypasses the editor.
+      if (!isTextField(target)) return false
+      try {
+        var proto =
+          target.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
         var setter = Object.getOwnPropertyDescriptor(proto, 'value').set
-        setter.call(el, el.value + text)
-        el.dispatchEvent(new Event('input', { bubbles: true }))
+        setter.call(target, target.value + text)
+        target.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      } catch {
+        return false
       }
     }
 
@@ -146,18 +180,22 @@ window.__ModuleLoader__.load({
       // No fresh confirmed host verdict: leave the paste native. Wrong only
       // for a text-only model's very first paste, and self-correcting.
       if (!cached || cached.at === 0 || cached.takeover !== true || Date.now() - cached.at > VERDICT_MAX_AGE_MS) return
+      var target = resolveWriteTarget(event)
+      if (!target) return
       // Take the paste before the composer's intake starts an attachment (and
       // with it the host-side image admission a text-only model fails).
       event.preventDefault()
       event.stopImmediatePropagation()
-      var target = event.target
       Promise.all(files.map(uploadOne))
         .then((results) => {
           var text = results
             .map((r) => r.path)
             .filter(Boolean)
             .join(' ')
-          if (text) insertText(target, `${text} `)
+          if (!text) return
+          if (!insertText(target, `${text} `)) {
+            console.error(`[modlens] paste-to-path: could not insert into the composer (${text})`)
+          }
         })
         .catch((error) => {
           // A 404 here means the route vanished AFTER a verdict confirmed it

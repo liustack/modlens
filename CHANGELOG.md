@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.26.1 - 2026-09-08
+
+- **dsh paste-to-path writes into the Lexical composer ([#100](https://github.com/liustack/modlens/issues/100)).** dsh 0.1.2-rc.1 replaced the composer textarea with a Lexical contenteditable div. The paste listener still uploaded the image, then `insertText` returned immediately because it only accepted `TEXTAREA` and `INPUT`, so the path never landed and the console stayed quiet. Paste-to-path now resolves a writable target (textarea, input, or `[data-composer-input][contenteditable=true]`) before taking the event, inserts with `execCommand`, and logs the path if that insert fails. Thanks to @xp1205700819-sudo.
+
 ## 3.26.0 - 2026-09-06
 
 - **Opt-in vision twins for other text models ([#98](https://github.com/liustack/modlens/issues/98)).** Set `families: ['*']` in the dsh plugin configuration to include models outside the default DeepSeek, GLM and MiMo families. Wildcard matches require explicit text input metadata and reject native image input, unknown capabilities and the existing native-vision exclusions. Default discovery and explicit family prefixes are unchanged. The bilingual harness guide documents the exact profile override, provider filtering and the native attachment flow. Third-party DeepSeek routes already work with default discovery ([#95](https://github.com/liustack/modlens/issues/95)).
