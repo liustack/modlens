@@ -754,9 +754,10 @@ function registerVisionProvider(ctx, config, ownProviders, evidenceCache, attach
   // aliases), because the text-only member is the same model wherever the id
   // carries a prefix. GLM-5.3-Flash (2026-08-26) is native multimodal without
   // a v in the name, so the glm-*v* branch cannot catch it. GLM-5.3 itself
-  // stays wrappable.
+  // stays wrappable. Gateways may spell the version dot as a dash
+  // (sn-glm-5-3-flash, sn-glm-4-6v), so the GLM gates accept either.
   const families = config.families || ['deepseek', 'glm', 'mimo']
-  const VISION_ID = /(deepseek-(vl|ocr)|janus|glm-[\d.]*v(\b|-)|glm-5\.3-flash(?:$|[-:])|\bvision\b)/i
+  const VISION_ID = /(deepseek-(vl|ocr)|janus|glm-[\d.-]*v(\b|-)|glm-5[.-]3-flash(?:$|[-:])|\bvision\b)/i
   const shouldWrap = (info) => {
     const id = String(info?.id ?? '').toLowerCase()
     // The model's own name: alias marker and vendor namespace stripped. The

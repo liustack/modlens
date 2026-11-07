@@ -3154,6 +3154,35 @@ describe('dsh vision provider auto-discovery (#29)', () => {
         expect(registered).toEqual(['modlens-zai']);
     });
 
+    it('never wraps a GLM vision model whose gateway spells the version with dashes', async () => {
+        // Gateways such as Raccoon serve sn-glm-5-3-flash and sn-glm-4-6v:
+        // the same native multimodal models with the version dot turned into a
+        // dash. A user who opts the prefix into families must not hand them a
+        // wrapper twin, even when the catalog omits modalities (#126).
+        const { registered } = await discoveryCtx(
+            [
+                {
+                    id: 'raccoon',
+                    models: [
+                        { id: 'sn-glm-5-3-flash' },
+                        { id: 'sn-glm-4-6v' },
+                        { id: 'sn-glm-5-3-flash-1017' },
+                    ],
+                },
+            ],
+            { families: ['sn-glm'] },
+        );
+        expect(registered).toEqual([]);
+    });
+
+    it('still wraps the dash-spelled GLM-5.3 text model', async () => {
+        const { registered } = await discoveryCtx(
+            [{ id: 'raccoon', models: [{ id: 'sn-glm-5-3' }] }],
+            { families: ['sn-glm'] },
+        );
+        expect(registered).toEqual(['modlens-raccoon']);
+    });
+
     it('sees family models behind a vendor namespace prefix', async () => {
         // OpenRouter spells GLM as z-ai/glm-5.2:free and aliases carry a
         // leading ~. Text-only family members are exactly what the wrapper
