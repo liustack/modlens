@@ -6048,7 +6048,9 @@ describe('pasted evidence points back at its attachment (#121)', () => {
             );
             expect(reads).toHaveLength(2);
             expect(reads[1]).toEqual({ attachmentId: ID, mediaType: 'image/png' });
-            expect(result.summary).toBe('focus=the axis labels bytes=71 mode=600 ext=.png');
+            // Windows has no POSIX modes: stat reports 666 whatever chmod set.
+            const mode = process.platform === 'win32' ? '666' : '600';
+            expect(result.summary).toBe(`focus=the axis labels bytes=71 mode=${mode} ext=.png`);
 
             // Keyed by the id: the same focus again is the cached reading.
             await tool.execute({ path: ID, prompt: 'the axis labels' }, { signal: undefined });
