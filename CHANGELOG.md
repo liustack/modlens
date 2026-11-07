@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.27.3 - 2026-11-08
+
+- **dsh: GLM vision models keep their native sight behind gateways that spell versions with dashes ([#126](https://github.com/liustack/modlens/issues/126)).** The name check that keeps native vision models out of the `(modlens vision)` wrap only knew the dotted spelling (`glm-5.3-flash`, `glm-4.6v`). Gateways such as Raccoon serve the same models as `sn-glm-5-3-flash` and `sn-glm-4-6v`, so after adding the gateway prefix to `families`, a catalog that omits modalities would have handed a vision model a wrapper twin. Both spellings are now excluded, and the text-only `sn-glm-5-3` still wraps. Default family matching stays prefix-only: a gateway namespace is opted in through `families`, as before.
+
 ## 3.27.2 - 2026-10-23
 
 - **dsh: a resumed session no longer re-reads every image in its history ([#122](https://github.com/liustack/modlens/issues/122)).** Paste evidence lived only in memory, so after dsh restarted or resumed a session, the first request sent every image in the history back through the engine one by one, and a history of 20 images froze the session for minutes. Each successful reading is now kept in `~/.modlens/dsh-evidence/` and a restarted plugin answers from there. The session log is untouched. Only attachments whose id is the sha256 of their bytes are kept, so an entry can never answer for a different picture, and the original file name is not stored. Entries are tied to the engine in `~/.modlens/config.json`, so switching provider or model reads the images again. The directory is 0700 and its files 0600. Entries unread for 30 days are removed, the store is capped at 64 MB with the least recently read going first, and deleting the directory is always safe. The engine still reads one image at a time: running several at once could trip a rate limit that cools the API key for every harness sharing it. Thanks to @cutefelix.
