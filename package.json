@@ -1,6 +1,6 @@
 {
     "name": "@liustack/modlens",
-    "version": "3.27.2",
+    "version": "3.27.3",
     "description": "Plug-in vision for text-only LLMs, powered by the free Antigravity CLI",
     "type": "module",
     "bin": {
