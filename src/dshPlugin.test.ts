@@ -329,6 +329,11 @@ describe('dsh plugin auto-read (phase 2)', () => {
             // history and bust the provider's prefix cache (#68).
             expect(block?.text).toContain('the vision engine failed');
             expect(block?.text).not.toContain('engine down');
+            // doctor is offline and cannot see a dead key or an empty
+            // balance, so the way out is a real read, which names each
+            // provider's own failure (#128).
+            expect(block?.text).toContain('npx @liustack/modlens -i');
+            expect(block?.text).not.toContain('doctor');
         } finally {
             delete process.env.MODLENS_DSH_CLI;
         }

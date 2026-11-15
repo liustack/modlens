@@ -1590,8 +1590,11 @@ const FAILURE_TEXTS = {
     '[A pasted image could not be read: the attachment store did not return it. Tell the user, and suggest running `npx @liustack/modlens doctor`.]',
   media:
     '[A pasted image could not be read: its media type is not supported. Tell the user, and suggest running `npx @liustack/modlens doctor`.]',
+  // Constant like the others (#68). doctor is offline and cannot see a dead
+  // key or an empty balance, while a real read names each provider's own
+  // failure (#128).
   engine:
-    '[A pasted image could not be read: the vision engine failed. Tell the user, and suggest running `npx @liustack/modlens doctor`.]',
+    '[A pasted image could not be read: the vision engine failed. Tell the user, and suggest running `npx @liustack/modlens -i <any image file>` in a terminal, which shows why each configured provider failed.]',
 }
 
 /**
