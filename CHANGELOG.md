@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.27.5 - 2026-11-15
+
+- **dsh: the read tool's description sends a failed read to a real read too ([#128](https://github.com/liustack/modlens/issues/128)).** 3.27.4 changed the failed-paste message, but the `modlens_read_image` description still named `modlens doctor` as the only check, and in a live run the model ran doctor first after a dead API key. The description now says doctor checks the setup, and a read in a terminal (`npx @liustack/modlens -i <image file>`) shows why each provider failed.
+
 ## 3.27.4 - 2026-11-15
 
 - **dsh: one model that gained native vision no longer takes down its whole `(modlens vision)` group ([#129](https://github.com/liustack/modlens/issues/129)).** The wrapper listed models by their listing entry but refused them by their resolved entry. When the two disagreed (an upstream catalog reporting image input that the local entry did not declare), the model was listed and then refused, and dsh, which resolves a whole group in one go, marked every model in it as failed to load. The listing now asks the resolved entry the same question, so such a model simply drops out of the group and the rest stay selectable. A model the upstream fails to look up is left out the same way, instead of failing the listing. A session that already picked it still gets the message saying to switch to the plain entry. Thanks to @Swcmb.
