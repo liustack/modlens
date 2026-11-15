@@ -5936,6 +5936,107 @@ describe('one model the resolver refuses does not take its group down (#129)', (
     });
 });
 
+describe('rendered evidence carries the layout regions it promises (#130)', () => {
+    // dsh puts the rendered text on the wire, not the structured value, so a
+    // region the engine returned but the renderer dropped never reaches the
+    // model, while the tool description says it does.
+    type Rendered = Array<{ type: string; text: string }>;
+    async function renderOf(value: unknown): Promise<{ text: string; description: string }> {
+        // @ts-expect-error untyped on purpose
+        const plugin = (await import('../dsh/index.js')) as {
+            apply: (ctx: unknown, config?: Record<string, unknown>) => void;
+        };
+        let tool:
+            | {
+                  description: string;
+                  output: { render: (args: unknown, value: unknown) => Rendered };
+              }
+            | undefined;
+        plugin.apply(
+            {
+                tools: { register: (next: typeof tool) => (tool = next) },
+                attachments: {},
+                on: () => {},
+            } as never,
+            { visionProvider: false },
+        );
+        if (!tool) throw new Error('tool was not registered');
+        return {
+            text: tool.output
+                .render({ path: '/x.png' }, value)
+                .map((block) => block.text)
+                .join('\n'),
+            description: tool.description,
+        };
+    }
+
+    const base = {
+        summary: 'A pricing table',
+        ocr: { full_text: 'Plans Free Pro 0 20', lines: [] },
+        semantics: { scene: 'web page', entities: [] },
+        visual: { dominant_colors: [], style: '', notes: [] },
+        uncertainty: [],
+    };
+
+    it('outlines regions in reading order with their kind, ahead of the transcription', async () => {
+        const { text } = await renderOf({
+            ...base,
+            layout: {
+                regions: [
+                    { type: 'table', reading_order: 2, text: 'Free | 0\nPro | 20' },
+                    { type: 'heading', reading_order: 1, text: 'Plans' },
+                ],
+            },
+        });
+        expect(text).toContain('[heading] Plans');
+        // One region, one line: a newline inside it would read as two.
+        expect(text).toContain('[table] Free | 0 Pro | 20');
+        expect(text.indexOf('[heading]')).toBeLessThan(text.indexOf('[table]'));
+        expect(text.indexOf('[table]')).toBeLessThan(text.indexOf('Plans Free Pro 0 20'));
+    });
+
+    it('keeps every transcribed word when a region only describes its content', async () => {
+        // region.text is not promised verbatim, so the transcription stays
+        // the carrier of every word (review of #130).
+        const { text } = await renderOf({
+            ...base,
+            layout: {
+                regions: [
+                    { type: 'table', reading_order: 1, text: 'Pricing table with two plans' },
+                ],
+            },
+        });
+        expect(text).toContain('[table] Pricing table with two plans');
+        expect(text).toContain('Plans Free Pro 0 20');
+    });
+
+    it('bounds what the outline adds, however many or long the regions', async () => {
+        const regions = Array.from({ length: 200 }, (_, index) => ({
+            type: 'paragraph',
+            reading_order: index + 1,
+            text: `region ${index} `.padEnd(500, 'x'),
+        }));
+        const { text } = await renderOf({ ...base, layout: { regions } });
+        const outline = text.slice(0, text.indexOf('Plans Free Pro 0 20'));
+        expect(outline.length).toBeLessThan(1700);
+        expect(outline).toContain('[paragraph] region 0 ');
+        expect(outline).not.toContain('x'.repeat(100));
+    });
+
+    it('renders only the transcription when the engine gives no regions', async () => {
+        const { text } = await renderOf({ ...base, layout: { regions: [] } });
+        expect(text).toContain('Plans Free Pro 0 20');
+        expect(text).not.toContain('Layout');
+    });
+
+    it('describes only what the rendered evidence holds', async () => {
+        const { description } = await renderOf(base);
+        expect(description).toContain('reading order');
+        // Semantics are in the structured value but not on the wire.
+        expect(description).not.toMatch(/\bsemantics\b/);
+    });
+});
+
 describe('the settings card is dispatchable on rc.7 (#61, #65)', () => {
     // rc.7's settings page renders a plugin card only when the card's slot key
     // matches a namespace the host serves in settings.describe. The card keys

@@ -295,7 +295,7 @@ export function apply(ctx, config = {}) {
   const readImageTool = (toolName) => ({
     name: toolName,
     description:
-      'Read an image through the modlens vision bridge. Use whenever a message references an image the current model cannot see: a local file path or an http(s) URL to a screenshot, photo, chart, diagram, or document scan. Returns structured evidence with every word transcribed (ocr.full_text), layout regions in reading order, semantics, and an uncertainty list. Quote the evidence instead of guessing. For the same image and focus, call this tool once and reuse its returned evidence instead of calling again. Evidence for a pasted image carries an `attachment-id:` line: to read that image again with a new focus, pass the id as path, and do not search the filesystem for the file. Requires a configured modlens engine (run `npx @liustack/modlens doctor` in a terminal to check).',
+      'Read an image through the modlens vision bridge. Use whenever a message references an image the current model cannot see: a local file path or an http(s) URL to a screenshot, photo, chart, diagram, or document scan. Returns a summary, an outline of the layout regions in reading order, every word transcribed, and an uncertainty list. Quote the evidence instead of guessing. For the same image and focus, call this tool once and reuse its returned evidence instead of calling again. Evidence for a pasted image carries an `attachment-id:` line: to read that image again with a new focus, pass the id as path, and do not search the filesystem for the file. Requires a configured modlens engine (run `npx @liustack/modlens doctor` in a terminal to check).',
     parameters: {
       type: 'object',
       properties: {
@@ -1689,7 +1689,7 @@ const EVIDENCE_TOUCH_INTERVAL_MS = 24 * 60 * 60 * 1000
 // Bumped whenever the evidence text changes shape (a new header line, a
 // different rendering), so old entries stop answering instead of putting
 // yesterday's format back on the wire.
-const EVIDENCE_FORMAT = 1
+const EVIDENCE_FORMAT = 2
 const EVIDENCE_STORE_MAX_BYTES = 64 * 1024 * 1024
 // Housekeeping runs at most this often, on the first store access and then
 // on later ones; a long session must not list the directory on every read.
@@ -1941,8 +1941,44 @@ function run(command, args, signal) {
   })
 }
 
+// What the layout outline may add to every piece of evidence: one line per
+// region, each clipped, and the whole outline capped, so a busy page cannot
+// crowd out the transcription that carries its words.
+const OUTLINE_LINE_CHARS = 80
+const OUTLINE_MAX_CHARS = 1500
+
+/** Whitespace folded to single spaces and the result clipped. */
+function oneLine(text, max) {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat
+}
+
+/**
+ * The text dsh puts on the wire. A text-only model gets no structure from
+ * the transcription alone, so a short outline of the layout regions (kind and
+ * opening words, in reading order) goes ahead of it (#130). The outline does
+ * not replace the transcription: region text is not promised verbatim, and
+ * an engine may describe a table where the transcription has its numbers.
+ */
 function renderEvidence(value) {
   const lines = [value.summary]
+  const regions = [...(value.layout?.regions ?? [])]
+    .filter((region) => region.text.trim())
+    .sort((a, b) => a.reading_order - b.reading_order)
+  if (regions.length > 0) {
+    const outline = []
+    let used = 0
+    for (const region of regions) {
+      const line = `[${oneLine(region.type, 24)}] ${oneLine(region.text, OUTLINE_LINE_CHARS)}`
+      if (used + line.length > OUTLINE_MAX_CHARS) {
+        outline.push('…')
+        break
+      }
+      outline.push(line)
+      used += line.length + 1
+    }
+    lines.push('', 'Layout (reading order):', ...outline)
+  }
   const text = value.ocr?.full_text?.trim()
   if (text) {
     lines.push('', 'Transcription:', text.length > 4000 ? `${text.slice(0, 4000)}…` : text)
