@@ -6040,6 +6040,15 @@ describe('rendered evidence carries the layout regions it promises (#130)', () =
         // Semantics are in the structured value but not on the wire.
         expect(description).not.toMatch(/\bsemantics\b/);
     });
+
+    it('sends a failed read to a real read, keeping doctor for setup (#128)', async () => {
+        // A live run showed the model running doctor after a dead key, because
+        // the description named doctor as the only check. doctor is offline
+        // and cannot see a 401 or an empty balance.
+        const { description } = await renderOf(base);
+        expect(description).toContain('npx @liustack/modlens -i');
+        expect(description).toMatch(/doctor`?\)? (checks|to check) (the )?setup/);
+    });
 });
 
 describe('the settings card is dispatchable on rc.7 (#61, #65)', () => {
