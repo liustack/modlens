@@ -875,10 +875,31 @@ function registerVisionProvider(ctx, config, ownProviders, evidenceCache, attach
         },
         async listModels(_provider, signal) {
           const models = await llm.listModels(upstream, signal)
-          return models.filter(shouldWrap).map((model) => ({
-            ...withVision(model),
-            name: `${model.name ?? model.id} (modlens vision)`,
-          }))
+          // dsh resolves every listed entry inside one try per group, so a
+          // model listed here and then refused by resolveModel fails the whole
+          // group (#129). The listing snapshot can lag the resolved one (an
+          // upstream catalog that gained image input after the local entry
+          // was written), so the listing asks the same question of the same
+          // data the resolver will. A model the upstream cannot resolve is
+          // left out too, rather than failing the listing: hosts that only
+          // list (the ACP bridge, the subagent picker) would lose the group.
+          const listed = models.filter(shouldWrap)
+          const resolved = await Promise.allSettled(
+            listed.map((model) => llm.resolveModelInfo(upstream, model.id, signal)),
+          )
+          return listed
+            .filter((model, index) => {
+              const outcome = resolved[index]
+              if (outcome.status === 'fulfilled') return shouldWrap(outcome.value)
+              console.error(
+                `[modlens] left ${model.id} out of the vision listing: ${outcome.reason?.message ?? outcome.reason}`,
+              )
+              return false
+            })
+            .map((model) => ({
+              ...withVision(model),
+              name: `${model.name ?? model.id} (modlens vision)`,
+            }))
         },
         async resolveModel(_provider, model, signal) {
           const info = await llm.resolveModelInfo(upstream, model, signal)

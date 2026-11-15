@@ -5844,6 +5844,98 @@ describe('a route that gains native vision says so, and says what to do', () => 
     });
 });
 
+describe('one model the resolver refuses does not take its group down (#129)', () => {
+    // dsh builds a group by resolving every listed model inside one try, so a
+    // model listModels publishes and resolveModel then refuses fails the whole
+    // group. The listing and the resolver must agree: a model whose resolved
+    // info is no longer wrappable is left out of the listing.
+    async function wrapperFor(
+        listed: Array<Record<string, unknown>>,
+        resolved: Record<string, string[] | undefined>,
+        unresolvable: Set<string> = new Set(),
+    ) {
+        // @ts-expect-error untyped on purpose
+        const plugin = (await import('../dsh/index.js')) as {
+            apply: (ctx: unknown, config?: Record<string, unknown>) => void;
+        };
+        let adapter: Record<string, CallableFunction> | undefined;
+        const llm = {
+            providerRetryPolicy: () => undefined,
+            registerAdapter: (_ids: string[], next: Record<string, CallableFunction>) => {
+                adapter = next;
+                const handle = () => {};
+                handle.replace = () => {};
+                return handle;
+            },
+            listProviders: () => [{ id: 'lanz', name: 'Lanz' }],
+            listModels: async () => listed,
+            resolveModelInfo: async (_provider: string, id: string) => {
+                if (unresolvable.has(id)) throw new Error(`no such model ${id}`);
+                return {
+                    provider: 'lanz',
+                    id,
+                    name: id,
+                    ...(resolved[id] === undefined ? {} : { inputModalities: resolved[id] }),
+                };
+            },
+            stream: () => (async function* () {})(),
+        };
+        plugin.apply(
+            { tools: { register: () => {} }, attachments: {}, on: () => {}, llm } as never,
+            { upstream: 'lanz', providerId: 'house-lanz' },
+        );
+        return adapter as Record<string, CallableFunction>;
+    }
+
+    it('leaves out a model whose resolved info declares image input', async () => {
+        // The listing snapshot still says text-only, the resolved one has
+        // gained image: exactly the drift the issue reports.
+        const adapter = await wrapperFor(
+            [
+                { provider: 'lanz', id: 'deepseek-v4-pro', name: 'deepseek-v4-pro' },
+                { provider: 'lanz', id: 'deepseek-v4-flash', name: 'deepseek-v4-flash' },
+            ],
+            { 'deepseek-v4-pro': ['text', 'image'], 'deepseek-v4-flash': ['text'] },
+        );
+        const models = (await adapter.listModels('house-lanz')) as Array<{ id: string }>;
+        expect(models.map((model) => model.id)).toEqual(['deepseek-v4-flash']);
+        // Every listed entry resolves, which is what dsh's catalog demands.
+        for (const model of models) {
+            await expect(adapter.resolveModel('house-lanz', model.id)).resolves.toBeTruthy();
+        }
+    });
+
+    it('leaves out a model the upstream cannot resolve, and lists the rest', async () => {
+        // Hosts that only list (the ACP bridge, the subagent model picker)
+        // must not lose a group to one model that fails to resolve.
+        const adapter = await wrapperFor(
+            [
+                { provider: 'lanz', id: 'deepseek-gone', name: 'deepseek-gone' },
+                { provider: 'lanz', id: 'deepseek-v4-flash', name: 'deepseek-v4-flash' },
+            ],
+            { 'deepseek-v4-flash': ['text'] },
+            new Set(['deepseek-gone']),
+        );
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            const models = (await adapter.listModels('house-lanz')) as Array<{ id: string }>;
+            expect(models.map((model) => model.id)).toEqual(['deepseek-v4-flash']);
+        } finally {
+            errors.mockRestore();
+        }
+    });
+
+    it('keeps the explanatory refusal for a session already holding the entry', async () => {
+        const adapter = await wrapperFor(
+            [{ provider: 'lanz', id: 'deepseek-v4-pro', name: 'deepseek-v4-pro' }],
+            { 'deepseek-v4-pro': ['text', 'image'] },
+        );
+        await expect(adapter.resolveModel('house-lanz', 'deepseek-v4-pro')).rejects.toThrow(
+            /declares native image input/,
+        );
+    });
+});
+
 describe('the settings card is dispatchable on rc.7 (#61, #65)', () => {
     // rc.7's settings page renders a plugin card only when the card's slot key
     // matches a namespace the host serves in settings.describe. The card keys
