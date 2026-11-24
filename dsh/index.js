@@ -136,6 +136,20 @@ const ATTACHMENT_ID = /^sha256:[0-9a-f]{64}$/
 // on purpose, so a mangled id gets the clear refusal instead of a missing
 // file error from the CLI.
 const ATTACHMENT_ID_PREFIX = /^sha256:/i
+// The evidence line reads `attachment-id: sha256:...`, and a model told to
+// pass the id may hand back the whole line (#133).
+const ATTACHMENT_ID_LABEL = /^attachment-id:\s*/i
+
+/**
+ * The attachment id a tool `path` names, or undefined when it names a file
+ * or URL. A labeled value is an id whatever follows the label, so a mangled
+ * one gets the clear refusal too.
+ */
+function attachmentIdArg(path) {
+  const trimmed = path.trim()
+  const value = trimmed.replace(ATTACHMENT_ID_LABEL, '')
+  return value !== trimmed || ATTACHMENT_ID_PREFIX.test(value) ? value : undefined
+}
 const ATTACHMENT_REF_LIMIT = 256
 // Success evidence block to the ref whose id it names. The cache hands out
 // these frozen blocks, so the block itself carries the id back to the record.
@@ -323,9 +337,7 @@ export function apply(ctx, config = {}) {
       title: toolName,
       kind: 'read',
       rawInput: args,
-      ...(typeof args?.path === 'string' &&
-      !/^https?:\/\//i.test(args.path) &&
-      !ATTACHMENT_ID_PREFIX.test(args.path.trim())
+      ...(typeof args?.path === 'string' && !/^https?:\/\//i.test(args.path) && attachmentIdArg(args.path) === undefined
         ? { locations: [{ path: args.path }] }
         : {}),
     }),
@@ -334,8 +346,8 @@ export function apply(ctx, config = {}) {
         throw new Error(`${toolName} needs a non-empty string "path".`)
       }
       const focus = typeof args.prompt === 'string' ? args.prompt : ''
-      const source = args.path.trim()
-      if (ATTACHMENT_ID_PREFIX.test(source)) {
+      const source = attachmentIdArg(args.path)
+      if (source !== undefined) {
         // A pasted image named by the id in its evidence (#121). Checked
         // before the cache, so an id that becomes known later is not stuck
         // behind a cached refusal.

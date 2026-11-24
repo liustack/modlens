@@ -6301,6 +6301,40 @@ describe('pasted evidence points back at its attachment (#121)', () => {
         }
     });
 
+    it('takes the evidence line as written, label and all (#133)', async () => {
+        // The evidence prints `attachment-id: sha256:...` and the description
+        // says to pass the id, so a model may hand back the whole line.
+        const { tool, reads, paste } = await setup();
+        process.env.MODLENS_DSH_CLI = fakeCli();
+        try {
+            await paste(ID);
+            const result = await tool.execute(
+                { path: `attachment-id: ${ID}`, prompt: 'the legend' },
+                { signal: undefined },
+            );
+            expect(reads).toHaveLength(2);
+            expect(result.summary).toContain('focus=the legend');
+            // Same identity as the bare id: the labeled form is a cache hit.
+            await tool.execute({ path: ID, prompt: 'the legend' }, { signal: undefined });
+            expect(reads).toHaveLength(2);
+            expect(tool.presentCall({ path: `attachment-id: ${ID}` }).locations).toBeUndefined();
+        } finally {
+            delete process.env.MODLENS_DSH_CLI;
+        }
+    });
+
+    it('refuses a labeled value that is not an id instead of treating it as a file (#133)', async () => {
+        const { tool } = await setup();
+        const message = await tool
+            .execute({ path: 'Attachment-ID:  not-a-hash' }, { signal: undefined })
+            .then(
+                () => '',
+                (error: Error) => error.message,
+            );
+        expect(message).toContain('not an image read in this session');
+        expect(message).not.toContain('not-a-hash');
+    });
+
     it('refuses an id this session never read', async () => {
         const { tool, reads } = await setup();
         const message = await tool
