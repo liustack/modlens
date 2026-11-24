@@ -3565,6 +3565,67 @@ describe('dsh vision provider auto-discovery (#29)', () => {
             }),
         );
 
+        // What dsh's own Models page reloads its catalog on. A pi-ai route
+        // that gains a model through settings emits only the settings event,
+        // a stored key only a credentials event (#132).
+        const catalogEvents: Array<[string, unknown]> = [
+            ['settings/document-updated', 'llm-pi-ai'],
+            ['credentials/reference-updated', 'env:ZAI_API_KEY'],
+            ['credentials/record-updated', 'llm-pi-ai:zai'],
+            ['llm/models-updated', 'deepseek-account'],
+        ];
+
+        it.each(catalogEvents)(
+            'a route that gains a wrappable model after the retries ran out is wrapped on %s (#132)',
+            (event, payload) =>
+                withFakeTimers(async () => {
+                    const models: Array<{ id: string; inputModalities?: string[] }> = [
+                        { id: 'deepseek-flash', inputModalities: ['text', 'image'] },
+                    ];
+                    const host = await quietHost(async () => models);
+                    await vi.advanceTimersByTimeAsync(60 * 60_000);
+                    expect(host.calls()).toBe(4);
+                    expect(host.registered).toEqual([]);
+                    models.push({ id: 'deepseek-v4-pro', inputModalities: ['text'] });
+                    (host.handlers[event] as (arg: unknown) => void)(payload);
+                    await vi.advanceTimersByTimeAsync(10);
+                    expect(host.registered).toEqual(['modlens-deepseek-account']);
+                })(),
+        );
+
+        it(
+            'a catalog event starts a fresh retry round like a topology change',
+            withFakeTimers(async () => {
+                const host = await quietHost(async () => [
+                    { id: 'deepseek-flash', inputModalities: ['text', 'image'] },
+                ]);
+                await vi.advanceTimersByTimeAsync(60 * 60_000);
+                expect(host.calls()).toBe(4);
+                (host.handlers['settings/document-updated'] as (ns: string) => void)('llm-pi-ai');
+                await vi.advanceTimersByTimeAsync(60 * 60_000);
+                expect(host.calls()).toBe(8);
+            }),
+        );
+
+        it(
+            'a burst of events costs one extra sweep, not one per event',
+            withFakeTimers(async () => {
+                // dsh's first settings read announces every profile entry at
+                // once, and any settings write announces again.
+                const host = await quietHost(async () => [
+                    { id: 'deepseek-flash', inputModalities: ['text', 'image'] },
+                ]);
+                await vi.advanceTimersByTimeAsync(60 * 60_000);
+                expect(host.calls()).toBe(4);
+                const announce = host.handlers['settings/document-updated'] as (ns: string) => void;
+                for (let i = 0; i < 30; i += 1) announce(`entry-${i}`);
+                await vi.advanceTimersByTimeAsync(10);
+                expect(host.calls()).toBe(5);
+                await vi.advanceTimersByTimeAsync(60 * 60_000);
+                expect(host.calls()).toBe(8);
+            }),
+        );
+
         it(
             'a pending retry dies with the activation',
             withFakeTimers(async () => {

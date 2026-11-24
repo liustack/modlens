@@ -151,6 +151,14 @@ function attachmentIdArg(path) {
   return value !== trimmed || ATTACHMENT_ID_PREFIX.test(value) ? value : undefined
 }
 const ATTACHMENT_REF_LIMIT = 256
+// Host events after which a route may list different models.
+const CATALOG_EVENTS = [
+  'llm/adapters-updated',
+  'llm/models-updated',
+  'settings/document-updated',
+  'credentials/record-updated',
+  'credentials/reference-updated',
+]
 // Success evidence block to the ref whose id it names. The cache hands out
 // these frozen blocks, so the block itself carries the id back to the record.
 const NAMED_EVIDENCE = new WeakMap()
@@ -1174,8 +1182,8 @@ function registerVisionProvider(ctx, config, ownProviders, evidenceCache, attach
   // unrelated moves the topology. A sweep that leaves a route unresolved
   // therefore re-runs itself on a short backoff, bounded so a route that is
   // simply not wrappable costs three extra probes, not a poll forever. A
-  // topology notification starts the round over, because the route it
-  // announces may itself still be settling.
+  // topology or catalog notification starts the round over, because the
+  // route it announces may itself still be settling.
   const RETRY_DELAYS_MS = [5_000, 30_000, 120_000]
   let retryStep = 0
   const scheduleRetry = () => {
@@ -1272,18 +1280,35 @@ function registerVisionProvider(ctx, config, ownProviders, evidenceCache, attach
   // Serialize: a sweep triggered mid-sweep runs after, never interleaved.
   // The first sweep is invoked directly so its synchronous prefix (the
   // legacy fallback, the pre-await claims) completes during apply().
+  // At most one sweep waits behind the running one: a burst of events (dsh
+  // announces every settings entry at once) costs one extra sweep, and an
+  // event that lands while that sweep runs still queues the next.
   let sweeping = sweepOnce()
+  let queued = false
+  const queuedSweep = () => {
+    queued = false
+    return sweepOnce()
+  }
   const sweep = () => {
-    sweeping = sweeping.then(sweepOnce, sweepOnce)
+    if (queued) return sweeping
+    queued = true
+    sweeping = sweeping.then(queuedSweep, queuedSweep)
     return sweeping
   }
+  const resweep = () => {
+    clearTimeout(retryTimer)
+    retryTimer = undefined
+    retryStep = 0
+    void sweep()
+  }
   if (typeof ctx.on === 'function') {
-    ctx.on('llm/adapters-updated', () => {
-      clearTimeout(retryTimer)
-      retryTimer = undefined
-      retryStep = 0
-      void sweep()
-    })
+    // A route's catalog can change without the topology moving: a pi-ai route
+    // gains a model through settings, a route whose key was missing lists
+    // nothing until the key is stored, an account route's listing refreshes.
+    // None of that emits adapters-updated (#132), and llm-pi-ai announces
+    // nothing of its own, so this follows the set dsh's own Models page
+    // reloads its catalog on. The sweep only probes routes not wrapped yet.
+    for (const event of CATALOG_EVENTS) ctx.on(event, resweep)
   }
   return deactivate
 }
