@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.27.6 - 2026-11-25
+
+- **dsh: `modlens_read_image` takes the evidence's `attachment-id:` line as written ([#133](https://github.com/liustack/modlens/issues/133)).** Pasted-image evidence prints `attachment-id: sha256:…` and the tool description says to pass the id, but only the bare `sha256:…` value was recognized. A model that passed the whole line fell through to the file branch and got `Input image not found` for a path that looked real. A value starting with the `attachment-id:` label is now read as an id: with a valid id it hits the same read and cache as the bare form, and anything else after the label gets the usual fixed refusal. The call card no longer shows the line as a file location. Thanks to @shyxhl for the exact root cause.
+- **dsh: auto-discovery notices when a route gains a model to wrap ([#132](https://github.com/liustack/modlens/issues/132)).** Discovery only swept again on `llm/adapters-updated`, which dsh emits when routes come and go. Adding a model to an existing route, or storing the API key a route was missing, changes what the route lists without touching the topology, so after the three boot retries the `modlens-<route>` wrapper never appeared until a restart. Discovery now also sweeps on the events dsh's own Models page reloads its catalog on: `settings/document-updated`, `credentials/record-updated` and `credentials/reference-updated`, plus `llm/models-updated` from routes that announce listing changes. Each event starts a fresh retry round, and a burst of events (dsh announces every settings entry at once) costs one extra sweep, not one per event. Thanks to @Ztyss.
+
 ## 3.27.5 - 2026-11-15
 
 - **dsh: the read tool's description sends a failed read to a real read too ([#128](https://github.com/liustack/modlens/issues/128)).** 3.27.4 changed the failed-paste message, but the `modlens_read_image` description still named `modlens doctor` as the only check, and in a live run the model ran doctor first after a dead API key. The description now says doctor checks the setup, and a read in a terminal (`npx @liustack/modlens -i <image file>`) shows why each provider failed.
