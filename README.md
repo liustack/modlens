@@ -25,6 +25,11 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
+<p align="center"><b>More from the author</b><br>
+  <a href="https://tifago.com"><b>Tifa</b></a> · Let your agent build a full web app in Go and React, then ship it as one file to a small VPS.<br>
+  <a href="https://github.com/liustack/sqlite"><b>liustack/sqlite</b></a> · One SQLite file runs your Go app: writes wait their turn instead of failing with "database is locked", and R2 restores any moment.
+</p>
+
 DeepSeek's flagship chat models, and GLM-5.3 itself, are text-only and cannot read images. GLM-5.3-Flash is native multimodal. ModLens is a plug-in vision engine that gives a text-only model sight. **ModLens reads images pasted straight into the chat**, no saving to a file and passing a path first.
 
 ## Talk to us
@@ -179,6 +184,11 @@ ModLens does not accept pull requests. The project is maintained by a single aut
 ```bash
 npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest
 ```
+
+More from the author:
+
+- **[Tifa](https://tifago.com)** · Let your agent build a full web app in Go and React, then ship it as one file to a small VPS.
+- **[liustack/sqlite](https://github.com/liustack/sqlite)** · One SQLite file runs your Go app: writes wait their turn instead of failing with "database is locked", and R2 restores any moment.
 
 Follow the **liustack** WeChat official account: AI startup opportunities, indie-dev insights, and hands-on AI tooling, delivered as they happen. Scan the QR code in WeChat, or search for "liustack":
 

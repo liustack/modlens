@@ -25,6 +25,11 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
+<p align="center"><b>同一作者的其他项目</b><br>
+  <a href="https://tifago.com"><b>Tifa</b></a> · 让 agent 用 Go 和 React 写出完整的网站，打成一个文件放到小 VPS 上就能跑。<br>
+  <a href="https://github.com/liustack/sqlite"><b>liustack/sqlite</b></a> · Go 服务只靠一个 SQLite 文件上线：并发写排队不报 database is locked，数据随时能从 R2 恢复。
+</p>
+
 DeepSeek 的主力对话模型和 GLM-5.3 本体仍是纯文本，无法读图。GLM-5.3-Flash 已是原生多模态。ModLens 借助外挂视觉引擎，为纯文本模型补上视觉能力。**ModLens 支持直接粘贴图片识别**，无需先保存成文件再提供路径。
 
 ## 交流
@@ -191,6 +196,11 @@ Codex 桌面 App 中识别一张推文截图。作者、配文、照片内容（
 ```bash
 npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest
 ```
+
+同一作者的其他项目：
+
+- **[Tifa](https://tifago.com)** · 让 agent 用 Go 和 React 写出完整的网站，打成一个文件放到小 VPS 上就能跑。
+- **[liustack/sqlite](https://github.com/liustack/sqlite)** · Go 服务只靠一个 SQLite 文件上线：并发写排队不报 database is locked，数据随时能从 R2 恢复。
 
 关注微信公众号「liustack」：AI 创业机会、独立开发见解、AI 实战与工具，第一时间推送。微信扫码，或搜一搜「liustack」：
 
